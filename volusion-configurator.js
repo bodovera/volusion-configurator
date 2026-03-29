@@ -9,7 +9,7 @@
   // - Doogma/Volusion select + radio controls
   // ==============================
 
-  const RULES_URL = 'https://github.com/bodovera/volusion-option-rules.json';
+  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json';
 
   let optionRules = {};
   let rulesLoaded = false;
