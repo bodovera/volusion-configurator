@@ -1,7 +1,7 @@
 (function () {
-  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json';
-
+  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=1';
   let OPTION_RULES = {};
+  let isRefreshing = false;
 
   function getSelectedOptionIds() {
     const ids = [];
@@ -53,11 +53,12 @@
     let visibleCount = 0;
     let selectedStillValid = false;
 
-    Array.from(sel.options).forEach(function (opt) {
+    Array.from(sel.options).forEach(function (opt, index) {
       const optionId = parseInt(opt.value, 10);
 
       if (isNaN(optionId)) {
         opt.hidden = false;
+        if (index === sel.selectedIndex) selectedStillValid = true;
         return;
       }
 
@@ -70,7 +71,6 @@
 
     if (!selectedStillValid) {
       sel.selectedIndex = 0;
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     const wrapper = getFieldWrapper(sel);
@@ -79,7 +79,7 @@
     }
   }
 
-  function refreshRadios(groupName, radios, selectedIds) {
+  function refreshRadioGroup(radios, selectedIds) {
     let visibleCount = 0;
 
     radios.forEach(function (radio) {
@@ -103,21 +103,28 @@
   }
 
   function refreshAll() {
-    const selectedIds = getSelectedOptionIds();
+    if (isRefreshing) return;
+    isRefreshing = true;
 
-    document.querySelectorAll('select[name^="SELECT__"]').forEach(function (sel) {
-      refreshSelect(sel, selectedIds);
-    });
+    try {
+      const selectedIds = getSelectedOptionIds();
 
-    const radioGroups = {};
-    document.querySelectorAll('input[type="radio"][name^="SELECT__"]').forEach(function (radio) {
-      if (!radioGroups[radio.name]) radioGroups[radio.name] = [];
-      radioGroups[radio.name].push(radio);
-    });
+      document.querySelectorAll('select[name^="SELECT__"]').forEach(function (sel) {
+        refreshSelect(sel, selectedIds);
+      });
 
-    Object.keys(radioGroups).forEach(function (name) {
-      refreshRadios(name, radioGroups[name], selectedIds);
-    });
+      const radioGroups = {};
+      document.querySelectorAll('input[type="radio"][name^="SELECT__"]').forEach(function (radio) {
+        if (!radioGroups[radio.name]) radioGroups[radio.name] = [];
+        radioGroups[radio.name].push(radio);
+      });
+
+      Object.keys(radioGroups).forEach(function (name) {
+        refreshRadioGroup(radioGroups[name], selectedIds);
+      });
+    } finally {
+      isRefreshing = false;
+    }
   }
 
   function bindEvents() {
@@ -129,27 +136,23 @@
         refreshAll();
       }
     });
-
-    const observer = new MutationObserver(function () {
-      refreshAll();
-    });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
   }
 
   async function init() {
     try {
       const res = await fetch(RULES_URL, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to load rules JSON: ' + res.status);
+
       OPTION_RULES = await res.json();
-      refreshAll();
       bindEvents();
-      console.log('Volusion option rules loaded:', OPTION_RULES);
+
+      refreshAll();
+      setTimeout(refreshAll, 300);
+      setTimeout(refreshAll, 1000);
+
+      console.log('Volusion rules loaded', OPTION_RULES);
     } catch (err) {
-      console.error('Volusion option rules failed to load:', err);
+      console.error('Volusion rules failed to load:', err);
     }
   }
 
