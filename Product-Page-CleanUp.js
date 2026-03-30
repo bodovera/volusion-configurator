@@ -1,23 +1,24 @@
 (function () {
-  function isProductPage() {
-    return !!document.querySelector('[data-product-code], [data-product-base-price]');
-  }
+  var path = window.location.pathname.toLowerCase();
 
-  if (!isProductPage()) return;
+  // Only run on actual product detail pages
+  if (!path.includes('/product-p/')) return;
 
-  function hide(el) {
-    if (el) el.style.display = 'none';
-  }
+  function hideProductBits() {
+    document.querySelectorAll('[data-product-base-price]').forEach(function (el) {
+      el.style.setProperty('display', 'none', 'important');
+    });
 
-  function cleanProductPage() {
-    document.querySelectorAll('[data-product-base-price]').forEach(hide);
-    document.querySelectorAll('[data-product-code]').forEach(hide);
+    document.querySelectorAll('[data-product-code]').forEach(function (el) {
+      el.style.setProperty('display', 'none', 'important');
+    });
   }
 
   function init() {
-    cleanProductPage();
-    setTimeout(cleanProductPage, 300);
-    setTimeout(cleanProductPage, 1000);
+    hideProductBits();
+    setTimeout(hideProductBits, 300);
+    setTimeout(hideProductBits, 1000);
+    setTimeout(hideProductBits, 2000);
   }
 
   if (document.readyState === 'loading') {
