@@ -1,37 +1,21 @@
 (function () {
-
   function isProductPage() {
-    return document.querySelector('[name="ProductCode"]');
+    return !!document.querySelector('[data-product-code], [data-product-base-price]');
   }
 
   if (!isProductPage()) return;
 
-  function hideFieldByName(fieldName) {
-    document.querySelectorAll('[name="' + fieldName + '"]').forEach(function (el) {
-      const wrapper =
-        el.closest('.w-100.flex.pt2.items-center') ||
-        el.closest('.w-100') ||
-        el.closest('div') ||
-        el.parentElement;
-
-      if (wrapper) {
-        wrapper.style.display = 'none';
-      } else {
-        el.style.display = 'none';
-      }
-    });
+  function hide(el) {
+    if (el) el.style.display = 'none';
   }
 
   function cleanProductPage() {
-    hideFieldByName('ProductCode');
-    hideFieldByName('ProductPrice');
-    hideFieldByName('ProductPrice_Name');
+    document.querySelectorAll('[data-product-base-price]').forEach(hide);
+    document.querySelectorAll('[data-product-code]').forEach(hide);
   }
 
   function init() {
     cleanProductPage();
-
-    // Volusion delayed render protection
     setTimeout(cleanProductPage, 300);
     setTimeout(cleanProductPage, 1000);
   }
@@ -41,5 +25,4 @@
   } else {
     init();
   }
-
 })();
