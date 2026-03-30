@@ -3,32 +3,21 @@
     return !!document.querySelector('[data-product-code], [data-product-base-price]');
   }
 
-  function hideProductBits() {
-    document.querySelectorAll('[data-product-base-price]').forEach(function (el) {
-      el.style.setProperty('display', 'none', 'important');
-    });
+  if (!isProductPage()) return;
 
-    document.querySelectorAll('[data-product-code]').forEach(function (el) {
-      el.style.setProperty('display', 'none', 'important');
-    });
+  function hide(el) {
+    if (el) el.style.display = 'none';
   }
 
-  function runCleanupPasses() {
-    let count = 0;
-    const maxRuns = 20;
-
-    const timer = setInterval(function () {
-      hideProductBits();
-      count += 1;
-
-      if (count >= maxRuns) {
-        clearInterval(timer);
-      }
-    }, 250);
+  function cleanProductPage() {
+    document.querySelectorAll('[data-product-base-price]').forEach(hide);
+    document.querySelectorAll('[data-product-code]').forEach(hide);
   }
 
   function init() {
-    runCleanupPasses();
+    cleanProductPage();
+    setTimeout(cleanProductPage, 300);
+    setTimeout(cleanProductPage, 1000);
   }
 
   if (document.readyState === 'loading') {
