@@ -21,7 +21,6 @@ function lookupPrice(tableName, width, height, tables) {
   return table.values[h][wIndex] || 0;
 }
 
-
 function parseFraction(val) {
   if (!val || val === '0') return 0;
 
@@ -42,18 +41,20 @@ function parseFraction(val) {
   return isNaN(parsed) ? 0 : parsed;
 }
 
-function getSelectValue(index) {
-  var selects = document.querySelectorAll('select');
-  if (!selects[index]) return 0;
-  return selects[index].value || 0;
+function getSelectedText(selector) {
+  var el = document.querySelector(selector);
+  if (!el) return '0';
+
+  var opt = el.options[el.selectedIndex];
+  return opt ? (opt.text || opt.value || '0') : (el.value || '0');
 }
 
 function getEffectiveSize() {
-  var width = parseFloat(getSelectValue(1) || 0);
-  var widthInc = parseFraction(getSelectValue(2));
+  var width = parseFloat(getSelectedText('.doogma-width')) || 0;
+  var widthInc = parseFraction(getSelectedText('.doogma-widthinc'));
 
-  var height = parseFloat(getSelectValue(3) || 0);
-  var heightInc = parseFraction(getSelectValue(4));
+  var height = parseFloat(getSelectedText('.doogma-length')) || 0;
+  var heightInc = parseFraction(getSelectedText('.doogma-lengthinc'));
 
   return {
     width: width + widthInc,
