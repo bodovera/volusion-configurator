@@ -14,6 +14,13 @@
     el.style.setProperty('display', 'none', 'important');
   }
 
+  function showEl(el) {
+    if (!el) return;
+    el.style.setProperty('display', 'block', 'important');
+    el.style.setProperty('visibility', 'visible', 'important');
+    el.style.setProperty('opacity', '1', 'important');
+  }
+
   function extractQuotedValue(text) {
     if (!text) return null;
 
@@ -64,26 +71,19 @@
   }
 
   function hideProductBits() {
-    document.querySelectorAll('[data-product-code]').forEach(function (el) {
+    document.querySelectorAll('[data-product-code], [data-product-price-name], .ProductPrice_Name').forEach(function (el) {
       hideEl(el);
     });
 
     processCustomTableFields();
   }
 
-  // ✅ SAFE label fix (no global loop)
-  function cleanPriceLabel() {
-    var el =
-      document.querySelector('[data-product-price-name]') ||
-      document.querySelector('.ProductPrice_Name');
-
-    if (el) {
-      el.textContent = 'Product Price';
-    }
-  }
-
   function getPriceEl() {
-    return document.querySelector('[data-product-base-price]');
+    return (
+      document.querySelector('[data-product-price]') ||
+      document.querySelector('[data-product-base-price]') ||
+      document.querySelector('.ProductPrice')
+    );
   }
 
   function updatePrice(price) {
@@ -91,7 +91,7 @@
     if (!el) return;
 
     el.textContent = '$' + Number(price).toFixed(2);
-    el.style.display = 'block';
+    showEl(el);
   }
 
   function calculate() {
@@ -101,7 +101,6 @@
     if (typeof lookupPrice !== 'function') return;
 
     var size = getEffectiveSize();
-
     if (!size.width || !size.height) return;
 
     var price = lookupPrice(
@@ -116,23 +115,40 @@
     updatePrice(price);
   }
 
-  function init() {
-    hideProductBits();
-    cleanPriceLabel();
-
-    fetch(TABLES_URL)
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        TABLES = data || {};
-        calculate();
-      });
-
+  function bindEvents() {
     document.addEventListener('change', function () {
+      setTimeout(calculate, 50);
+      setTimeout(calculate, 200);
+      setTimeout(calculate, 500);
+    });
+
+    document.addEventListener('input', function () {
       setTimeout(calculate, 50);
       setTimeout(calculate, 200);
       setTimeout(calculate, 500);
     });
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  function init() {
+    hideProductBits();
+    setTimeout(hideProductBits, 300);
+    setTimeout(hideProductBits, 1000);
+
+    fetch(TABLES_URL)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        TABLES = data || {};
+        calculate();
+        setTimeout(calculate, 300);
+        setTimeout(calculate, 1000);
+      });
+
+    bindEvents();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
