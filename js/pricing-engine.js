@@ -21,6 +21,7 @@ function lookupPrice(tableName, width, height, tables) {
   return table.values[h][wIndex] || 0;
 }
 
+
 function parseFraction(val) {
   if (!val || val === '0') return 0;
 
