@@ -64,13 +64,21 @@
   }
 
   function hideProductBits() {
-    // ❌ DO NOT hide price anymore
-
     document.querySelectorAll('[data-product-code]').forEach(function (el) {
       hideEl(el);
     });
 
     processCustomTableFields();
+  }
+
+  function cleanPriceLabel() {
+    document.querySelectorAll('*').forEach(function (el) {
+      var txt = (el.textContent || '').trim();
+
+      if (txt.includes('starting at')) {
+        el.textContent = 'Product Price';
+      }
+    });
   }
 
   function getPriceEl() {
@@ -86,50 +94,44 @@
   }
 
   function calculate() {
-  if (!window.PRODUCT_PRICE_TABLE) return;
-  if (!TABLES[window.PRODUCT_PRICE_TABLE]) return;
-  if (typeof getEffectiveSize !== 'function') return;
-  if (typeof lookupPrice !== 'function') return;
+    if (!window.PRODUCT_PRICE_TABLE) return;
+    if (!TABLES[window.PRODUCT_PRICE_TABLE]) return;
+    if (typeof getEffectiveSize !== 'function') return;
+    if (typeof lookupPrice !== 'function') return;
 
-  var size = getEffectiveSize();
+    var size = getEffectiveSize();
 
-  if (!size.width || !size.height) return;
+    if (!size.width || !size.height) return;
 
-  var price = lookupPrice(
-    window.PRODUCT_PRICE_TABLE,
-    size.width,
-    size.height,
-    TABLES
-  );
+    var price = lookupPrice(
+      window.PRODUCT_PRICE_TABLE,
+      size.width,
+      size.height,
+      TABLES
+    );
 
-  // 🔥 KEY FIX — ignore zero results
-  if (!price || price === 0) return;
+    // ignore zero until valid
+    if (!price || price === 0) return;
 
-  updatePrice(price);
-}
-  
+    updatePrice(price);
+  }
+
   function init() {
     hideProductBits();
-    cleanPriceLabel() {
-  document.querySelectorAll('*').forEach(function (el) {
-    var txt = (el.textContent || '').trim();
+    cleanPriceLabel();
 
-    if (txt.includes('starting at')) {
-      el.textContent = 'Product Price';
-    }
-  });
-}
     fetch(TABLES_URL)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         TABLES = data || {};
         calculate();
       });
-document.addEventListener('change', function () {
-  setTimeout(calculate, 50);
-  setTimeout(calculate, 200);
-  setTimeout(calculate, 500);
-});
+
+    document.addEventListener('change', function () {
+      setTimeout(calculate, 50);
+      setTimeout(calculate, 200);
+      setTimeout(calculate, 500);
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);
