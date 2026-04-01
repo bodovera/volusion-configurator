@@ -92,29 +92,33 @@
   }
 
   function calculate() {
-    if (!window.PRODUCT_PRICE_TABLE) return;
-    if (!TABLES || !Object.keys(TABLES).length) return;
-    if (typeof getEffectiveSize !== 'function' || typeof lookupPrice !== 'function') return;
+  if (!window.PRODUCT_PRICE_TABLE) return;
+  if (!TABLES || !Object.keys(TABLES).length) return;
+  if (typeof getEffectiveSize !== 'function' || typeof lookupPrice !== 'function') return;
 
-    var size = getEffectiveSize();
+  var size = getEffectiveSize();
 
-    var price = lookupPrice(
-      window.PRODUCT_PRICE_TABLE,
-      size.width,
-      size.height,
-      TABLES
-    );
+  if (!size.width || !size.height) return;
 
-    updatePriceDisplay(price);
+  var price = lookupPrice(
+    window.PRODUCT_PRICE_TABLE,
+    size.width,
+    size.height,
+    TABLES
+  );
 
-    console.log({
-      table: window.PRODUCT_PRICE_TABLE,
-      width: size.width,
-      height: size.height,
-      price: price
-    });
-  }
+  if (!price || price <= 0) return;
 
+  updatePriceDisplay(price);
+
+  console.log({
+    table: window.PRODUCT_PRICE_TABLE,
+    width: size.width,
+    height: size.height,
+    price: price
+  });
+}
+  
   function initPricing() {
     fetch(TABLES_URL)
       .then(function (r) { return r.json(); })
