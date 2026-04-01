@@ -3,19 +3,21 @@
   if (!path.includes('/product-p/')) return;
 
   var TABLES = {};
-  var TABLES_URL = 'https://cdn.jsdelivr.net/gh/bodovera/volusion-configurator/pricing/tables.json';
+  var TABLES_URL = 'https://bodovera.github.io/volusion-configurator/pricing/tables.json';
 
   function updatePriceDisplay(price) {
     console.log('PRICE:', price);
 
-    var el = document.querySelector('[data-product-price]');
-    if (el) {
-      el.innerText = '$' + price.toFixed(2);
+    var basePriceEl = document.querySelector('[data-product-base-price]');
+    if (basePriceEl) {
+      basePriceEl.textContent = '$' + price.toFixed(2);
+      basePriceEl.style.setProperty('display', 'block', 'important');
     }
   }
 
   function calculate() {
     if (!window.PRODUCT_PRICE_TABLE) return;
+    if (!TABLES || !Object.keys(TABLES).length) return;
 
     var size = getEffectiveSize();
 
@@ -26,10 +28,14 @@
       TABLES
     );
 
-    // OPTIONAL: example flat option (for testing)
-    // price += lookupPrice("REMOTE_5CH", size.width, size.height, TABLES);
-
     updatePriceDisplay(price);
+
+    console.log({
+      table: window.PRODUCT_PRICE_TABLE,
+      width: size.width,
+      height: size.height,
+      price: price
+    });
   }
 
   function init() {
@@ -37,7 +43,6 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         TABLES = data;
-
         calculate();
         document.addEventListener('change', calculate);
       })
