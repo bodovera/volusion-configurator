@@ -1,90 +1,71 @@
 (function () {
   var path = window.location.pathname.toLowerCase();
 
-  // Only run on actual product detail pages
   if (!path.includes('/product-p/')) return;
 
-  // Expose for pricing engine
   window.PRODUCT_PRICE_TABLE = null;
   window.PRODUCT_COST_TABLE = null;
 
-  // --- Helpers ---
+  function hideEl(el) {
+    if (!el) return;
+    el.style.setProperty('display', 'none', 'important');
+  }
 
-  // Find a node that contains "Label: value", return {el, value}
-  function findLabelValue(label) {
-    var els = document.querySelectorAll('body *');
-    var prefix = label + ':';
+  function extractQuotedValue(text) {
+    if (!text) return null;
 
-    for (var i = 0; i < els.length; i++) {
-      var el = els[i];
+    var m = text.match(/"([^"]+)"/);
+    if (m && m[1]) return m[1].trim();
 
-      // Only consider leaf-ish nodes (avoid big containers)
-      if (el.children && el.children.length > 0) continue;
+    var parts = text.split(':');
+    if (parts.length > 1) return parts.slice(1).join(':').trim();
 
-      var txt = (el.textContent || '').trim();
-      if (!txt) continue;
-
-      if (txt.startsWith(prefix)) {
-        var val = txt.slice(prefix.length).trim();
-        return { el: el, value: val };
-      }
-    }
     return null;
   }
 
-  // Hide the nearest reasonable row/container for a field
-  function hideContainer(el) {
-    if (!el) return;
+  function processCustomTableFields() {
+    document.querySelectorAll('li, div').forEach(function (node) {
+      var bold = node.querySelector('b');
+      if (!bold) return;
 
-    // Try common wrappers first
-    var container =
-      el.closest('.product-field') ||
-      el.closest('.custom-field') ||
-      el.closest('tr') ||
-      el.closest('li') ||
-      el.parentElement;
+      var label = (bold.textContent || '').trim();
 
-    if (container) {
-      container.style.setProperty('display', 'none', 'important');
-    } else {
-      el.style.setProperty('display', 'none', 'important');
-    }
+      if (label !== 'PriceTable' && label !== 'CostTable') return;
+
+      var fullText = (node.textContent || '').trim();
+      var value = extractQuotedValue(fullText);
+
+      if (label === 'PriceTable' && value) {
+        window.PRODUCT_PRICE_TABLE = value;
+      }
+
+      if (label === 'CostTable' && value) {
+        window.PRODUCT_COST_TABLE = value;
+      }
+
+      var li = node.closest('li');
+      hideEl(li || node);
+    });
   }
 
   function hideProductBits() {
-    // Existing hides
     document.querySelectorAll('[data-product-base-price]').forEach(function (el) {
-      el.style.setProperty('display', 'none', 'important');
+      hideEl(el);
     });
 
     document.querySelectorAll('[data-product-code]').forEach(function (el) {
-      el.style.setProperty('display', 'none', 'important');
+      hideEl(el);
     });
 
-    // --- Extract + hide PriceTable ---
-    var pt = findLabelValue('PriceTable');
-    if (pt && pt.value) {
-      window.PRODUCT_PRICE_TABLE = pt.value;
-      hideContainer(pt.el);
-    }
-
-    // --- Extract + hide CostTable ---
-    var ct = findLabelValue('CostTable');
-    if (ct && ct.value) {
-      window.PRODUCT_COST_TABLE = ct.value;
-      hideContainer(ct.el);
-    }
+    processCustomTableFields();
   }
 
   function init() {
     hideProductBits();
-
-    // Run multiple times to catch dynamic rendering
     setTimeout(hideProductBits, 300);
     setTimeout(hideProductBits, 1000);
     setTimeout(hideProductBits, 2000);
 
-    // Debug (remove later)
     setTimeout(function () {
       console.log('Price Table:', window.PRODUCT_PRICE_TABLE);
       console.log('Cost Table:', window.PRODUCT_COST_TABLE);
