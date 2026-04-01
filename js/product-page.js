@@ -71,14 +71,15 @@
     processCustomTableFields();
   }
 
+  // ✅ SAFE label fix (no global loop)
   function cleanPriceLabel() {
-    document.querySelectorAll('*').forEach(function (el) {
-      var txt = (el.textContent || '').trim();
+    var el =
+      document.querySelector('[data-product-price-name]') ||
+      document.querySelector('.ProductPrice_Name');
 
-      if (txt.includes('starting at')) {
-        el.textContent = 'Product Price';
-      }
-    });
+    if (el) {
+      el.textContent = 'Product Price';
+    }
   }
 
   function getPriceEl() {
@@ -110,7 +111,6 @@
       TABLES
     );
 
-    // ignore zero until valid
     if (!price || price === 0) return;
 
     updatePrice(price);
