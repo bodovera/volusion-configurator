@@ -2,30 +2,59 @@
   var path = window.location.pathname.toLowerCase();
   if (!path.includes('/product-p/')) return;
 
+  // -----------------------------
+  // CONFIG
+  // -----------------------------
+  var TABLES_URL = 'https://bodovera.github.io/volusion-configurator/pricing/tables.json';
+
+  // Based on your current product page order:
+  // 0 = Fabric Colors
+  // 1 = Width
+  // 2 = WidthInc
+  // 3 = Length / Height
+  // 4 = HeightInc
+  var WIDTH_INDEX = 1;
+  var WIDTH_INC_INDEX = 2;
+  var HEIGHT_INDEX = 3;
+  var HEIGHT_INC_INDEX = 4;
+
+  // Globals used elsewhere if needed
   window.PRODUCT_PRICE_TABLE = null;
   window.PRODUCT_COST_TABLE = null;
 
   var TABLES = {};
-  var TABLES_URL = 'https://bodovera.github.io/volusion-configurator/pricing/tables.json';
+  var tablesLoaded = false;
+  var lastRenderedPrice = null;
+  var recalcTimer = null;
 
+  // -----------------------------
+  // HELPERS
+  // -----------------------------
   function hideEl(el) {
     if (!el) return;
     el.style.setProperty('display', 'none', 'important');
   }
 
-  function extractQuotedValue(text) {
-    if (!text) return null;
+  function text(el) {
+    return ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
+  }
 
-    text = String(text).replace(/\s+/g, ' ').trim();
+  function extractTableValue(rawText) {
+    if (!rawText) return null;
 
-    var q = text.match(/"([^"]+)"/);
-    if (q && q[1]) {
-      return q[1].replace(/^:\s*/, '').trim();
+    rawText = String(rawText).replace(/\s+/g, ' ').trim();
+
+    // Example patterns seen:
+    // PriceTable = $0 " : P_ROLLERSHADE_LF_A"
+    // CostTable = $0 " : C_ROLLERSHADE_LF_A"
+    var quoted = rawText.match(/"([^"]+)"/);
+    if (quoted && quoted[1]) {
+      return quoted[1].replace(/^:\s*/, '').trim();
     }
 
-    var c = text.match(/:\s*([A-Z0-9_]+)/i);
-    if (c && c[1]) {
-      return c[1].trim();
+    var colon = rawText.match(/:\s*([A-Z0-9_]+)/i);
+    if (colon && colon[1]) {
+      return colon[1].trim();
     }
 
     return null;
@@ -33,32 +62,28 @@
 
   function getHideTarget(node) {
     if (!node) return null;
-
     return (
       node.closest('li') ||
-      node.closest('[data-product-custom-fields] li') ||
-      node.closest('ul li') ||
-      node.closest('div')
+      node.closest('div') ||
+      node.parentElement
     );
   }
 
   function processCustomTableFields() {
     document.querySelectorAll('b').forEach(function (bold) {
-      var label = (bold.textContent || '').replace(/\s+/g, ' ').trim();
+      var label = text(bold);
 
       if (label !== 'PriceTable' && label !== 'CostTable') return;
 
       var target = getHideTarget(bold);
       if (!target) return;
 
-      var fullText = (target.textContent || '').replace(/\s+/g, ' ').trim();
-      var value = extractQuotedValue(fullText);
+      var value = extractTableValue(text(target));
+      if (!value) return;
 
-      if (label === 'PriceTable' && value) {
+      if (label === 'PriceTable') {
         window.PRODUCT_PRICE_TABLE = value;
-      }
-
-      if (label === 'CostTable' && value) {
+      } else if (label === 'CostTable') {
         window.PRODUCT_COST_TABLE = value;
       }
 
@@ -67,65 +92,162 @@
   }
 
   function hideProductBits() {
-    // Keep product code hidden
-    document.querySelectorAll('[data-product-code]').forEach(function (el) {
-      hideEl(el);
-    });
+    // Hide product code
+    document.querySelectorAll('[data-product-code]').forEach(hideEl);
 
-    // DO NOT hide [data-product-base-price]
-    // We need that visible for calculated pricing
-
+    // Keep base price element visible; we overwrite its text
     processCustomTableFields();
   }
 
-  function updatePriceDisplay(price) {
-    var basePriceEl = document.querySelector('[data-product-base-price]');
-
-    if (basePriceEl) {
-      basePriceEl.textContent = '$' + price.toFixed(2);
-      basePriceEl.style.setProperty('display', 'block', 'important');
-      basePriceEl.style.setProperty('visibility', 'visible', 'important');
-      basePriceEl.style.setProperty('opacity', '1', 'important');
-    }
-
-    console.log('PRICE:', price);
+  function getVisibleSelects() {
+    return Array.from(document.querySelectorAll('select')).filter(function (sel) {
+      var style = window.getComputedStyle(sel);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
   }
 
-  function calculate() {
-  if (!window.PRODUCT_PRICE_TABLE) return;
-  if (!TABLES || !Object.keys(TABLES).length) return;
-  if (typeof getEffectiveSize !== 'function' || typeof lookupPrice !== 'function') return;
+  function getSelectValueByIndex(index) {
+    var selects = getVisibleSelects();
+    if (!selects[index]) return '';
+    return selects[index].value || '';
+  }
 
-  var size = getEffectiveSize();
+  function getEffectiveSizeSafe() {
+    // Use pricing-engine.js if loaded, but read the right selects here
+    function localParseFraction(val) {
+      if (!val || val === '0') return 0;
+      val = String(val).trim();
+      if (val.indexOf('/') > -1) {
+        var parts = val.split('/');
+        if (parts.length === 2) {
+          var num = parseFloat(parts[0]);
+          var den = parseFloat(parts[1]);
+          if (!isNaN(num) && !isNaN(den) && den !== 0) return num / den;
+        }
+      }
+      var parsed = parseFloat(val);
+      return isNaN(parsed) ? 0 : parsed;
+    }
 
-  if (!size.width || !size.height) return;
+    var width = parseFloat(getSelectValueByIndex(WIDTH_INDEX) || 0);
+    var widthInc = localParseFraction(getSelectValueByIndex(WIDTH_INC_INDEX));
+    var height = parseFloat(getSelectValueByIndex(HEIGHT_INDEX) || 0);
+    var heightInc = localParseFraction(getSelectValueByIndex(HEIGHT_INC_INDEX));
 
-  var price = lookupPrice(
-    window.PRODUCT_PRICE_TABLE,
-    size.width,
-    size.height,
-    TABLES
-  );
+    return {
+      width: width + widthInc,
+      height: height + heightInc
+    };
+  }
 
-  if (!price || price <= 0) return;
+  function getLookupPrice(tableName, width, height) {
+    if (typeof lookupPrice === 'function') {
+      return lookupPrice(tableName, width, height, TABLES);
+    }
 
-  updatePriceDisplay(price);
+    // Fallback if pricing-engine.js somehow didn't load
+    var table = TABLES[tableName];
+    if (!table) return 0;
 
-  console.log({
-    table: window.PRODUCT_PRICE_TABLE,
-    width: size.width,
-    height: size.height,
-    price: price
-  });
-}
-  
-  function initPricing() {
+    var w = table.widths.find(function (x) { return x >= width; });
+    var h = table.heights.find(function (x) { return x >= height; });
+
+    if (!w || !h) return 0;
+
+    var wIndex = table.widths.indexOf(w);
+    if (wIndex === -1) return 0;
+    if (!table.values || !table.values[h]) return 0;
+
+    return table.values[h][wIndex] || 0;
+  }
+
+  function getPriceEl() {
+    return document.querySelector('[data-product-base-price]');
+  }
+
+  function renderPrice(price) {
+    var el = getPriceEl();
+    if (!el) return;
+
+    el.textContent = 'Product Price: $' + price.toFixed(2);
+    el.style.setProperty('display', 'block', 'important');
+    el.style.setProperty('visibility', 'visible', 'important');
+    el.style.setProperty('opacity', '1', 'important');
+
+    lastRenderedPrice = price;
+  }
+
+  function calculateAndRender() {
+    if (!tablesLoaded) return;
+    if (!window.PRODUCT_PRICE_TABLE) return;
+
+    var size = getEffectiveSizeSafe();
+
+    // Don’t overwrite with bad values
+    if (!size.width || !size.height) return;
+
+    var price = getLookupPrice(window.PRODUCT_PRICE_TABLE, size.width, size.height);
+
+    if (!price || price <= 0) return;
+
+    renderPrice(price);
+
+    console.log('Pricing:', {
+      table: window.PRODUCT_PRICE_TABLE,
+      width: size.width,
+      height: size.height,
+      price: price
+    });
+  }
+
+  function scheduleRecalc() {
+    clearTimeout(recalcTimer);
+    recalcTimer = setTimeout(function () {
+      hideProductBits();
+      calculateAndRender();
+    }, 80);
+  }
+
+  function bindEvents() {
+    document.addEventListener('change', scheduleRecalc, true);
+    document.addEventListener('input', scheduleRecalc, true);
+    document.addEventListener('click', function () {
+      setTimeout(scheduleRecalc, 50);
+    }, true);
+  }
+
+  function startObserver() {
+    var observer = new MutationObserver(function () {
+      hideProductBits();
+
+      // Repaint our price if Volusion redraws the block
+      if (lastRenderedPrice && getPriceEl()) {
+        renderPrice(lastRenderedPrice);
+      } else {
+        scheduleRecalc();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function loadTablesAndStart() {
     fetch(TABLES_URL)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        TABLES = data;
-        calculate();
-        document.addEventListener('change', calculate);
+        TABLES = data || {};
+        tablesLoaded = true;
+
+        hideProductBits();
+        calculateAndRender();
+
+        // Extra passes for late-rendered product blocks
+        setTimeout(calculateAndRender, 300);
+        setTimeout(calculateAndRender, 1000);
+        setTimeout(calculateAndRender, 2000);
       })
       .catch(function (err) {
         console.error('JSON LOAD ERROR:', err);
@@ -134,25 +256,11 @@
 
   function init() {
     hideProductBits();
-    setTimeout(hideProductBits, 300);
-    setTimeout(hideProductBits, 1000);
-    setTimeout(hideProductBits, 2000);
+    bindEvents();
+    startObserver();
+    loadTablesAndStart();
 
-    var observer = new MutationObserver(function () {
-      hideProductBits();
-    });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    initPricing();
-
-    setTimeout(function () {
-      console.log('Price Table:', window.PRODUCT_PRICE_TABLE);
-      console.log('Cost Table:', window.PRODUCT_COST_TABLE);
-    }, 500);
+    console.log('Product-Page.js loaded');
   }
 
   if (document.readyState === 'loading') {
