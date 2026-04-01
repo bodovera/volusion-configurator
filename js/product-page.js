@@ -14,13 +14,6 @@
     el.style.setProperty('display', 'none', 'important');
   }
 
-  function showEl(el) {
-    if (!el) return;
-    el.style.setProperty('display', 'block', 'important');
-    el.style.setProperty('visibility', 'visible', 'important');
-    el.style.setProperty('opacity', '1', 'important');
-  }
-
   function extractQuotedValue(text) {
     if (!text) return null;
 
@@ -71,7 +64,7 @@
   }
 
   function hideProductBits() {
-    document.querySelectorAll('[data-product-code], [data-product-price-name], .ProductPrice_Name').forEach(function (el) {
+    document.querySelectorAll('[data-product-code]').forEach(function (el) {
       hideEl(el);
     });
 
@@ -79,19 +72,17 @@
   }
 
   function getPriceEl() {
-    return (
-      document.querySelector('[data-product-price]') ||
-      document.querySelector('[data-product-base-price]') ||
-      document.querySelector('.ProductPrice')
-    );
+    return document.querySelector('[data-product-base-price]');
   }
 
   function updatePrice(price) {
     var el = getPriceEl();
     if (!el) return;
 
-    el.textContent = '$' + Number(price).toFixed(2);
-    showEl(el);
+    el.textContent = 'Product Price: $' + Number(price).toFixed(2);
+    el.style.setProperty('display', 'block', 'important');
+    el.style.setProperty('visibility', 'visible', 'important');
+    el.style.setProperty('opacity', '1', 'important');
   }
 
   function calculate() {
@@ -121,26 +112,16 @@
       setTimeout(calculate, 200);
       setTimeout(calculate, 500);
     });
-
-    document.addEventListener('input', function () {
-      setTimeout(calculate, 50);
-      setTimeout(calculate, 200);
-      setTimeout(calculate, 500);
-    });
   }
 
   function init() {
     hideProductBits();
-    setTimeout(hideProductBits, 300);
-    setTimeout(hideProductBits, 1000);
 
     fetch(TABLES_URL)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         TABLES = data || {};
         calculate();
-        setTimeout(calculate, 300);
-        setTimeout(calculate, 1000);
       });
 
     bindEvents();
