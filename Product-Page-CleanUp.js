@@ -14,25 +14,42 @@
   function extractQuotedValue(text) {
     if (!text) return null;
 
-    var m = text.match(/"([^"]+)"/);
-    if (m && m[1]) return m[1].trim();
+    text = String(text).replace(/\s+/g, ' ').trim();
 
-    var parts = text.split(':');
-    if (parts.length > 1) return parts.slice(1).join(':').trim();
+    var q = text.match(/"([^"]+)"/);
+    if (q && q[1]) {
+      return q[1].replace(/^:\s*/, '').trim();
+    }
+
+    var c = text.match(/:\s*([A-Z0-9_]+)/i);
+    if (c && c[1]) {
+      return c[1].trim();
+    }
 
     return null;
   }
 
-  function processCustomTableFields() {
-    document.querySelectorAll('li, div').forEach(function (node) {
-      var bold = node.querySelector('b');
-      if (!bold) return;
+  function getHideTarget(node) {
+    if (!node) return null;
 
-      var label = (bold.textContent || '').trim();
+    return (
+      node.closest('li') ||
+      node.closest('[data-product-custom-fields] li') ||
+      node.closest('ul li') ||
+      node.closest('div')
+    );
+  }
+
+  function processCustomTableFields() {
+    document.querySelectorAll('b').forEach(function (bold) {
+      var label = (bold.textContent || '').replace(/\s+/g, ' ').trim();
 
       if (label !== 'PriceTable' && label !== 'CostTable') return;
 
-      var fullText = (node.textContent || '').trim();
+      var target = getHideTarget(bold);
+      if (!target) return;
+
+      var fullText = (target.textContent || '').replace(/\s+/g, ' ').trim();
       var value = extractQuotedValue(fullText);
 
       if (label === 'PriceTable' && value) {
@@ -43,8 +60,7 @@
         window.PRODUCT_COST_TABLE = value;
       }
 
-      var li = node.closest('li');
-      hideEl(li || node);
+      hideEl(target);
     });
   }
 
@@ -65,6 +81,15 @@
     setTimeout(hideProductBits, 300);
     setTimeout(hideProductBits, 1000);
     setTimeout(hideProductBits, 2000);
+
+    var observer = new MutationObserver(function () {
+      hideProductBits();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
 
     setTimeout(function () {
       console.log('Price Table:', window.PRODUCT_PRICE_TABLE);
