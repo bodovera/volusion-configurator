@@ -14,6 +14,7 @@
       basePriceEl.style.setProperty('display', 'block', 'important');
     }
   }
+  
 
   function calculate() {
     if (!window.PRODUCT_PRICE_TABLE) return;
