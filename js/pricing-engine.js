@@ -41,12 +41,18 @@ function parseFraction(val) {
   return isNaN(parsed) ? 0 : parsed;
 }
 
-function getEffectiveSize() {
-  var width = parseFloat(document.querySelector('#width')?.value || 0);
-  var widthInc = parseFraction(document.querySelector('#widthInc')?.value);
+function getSelectValue(index) {
+  var selects = document.querySelectorAll('select');
+  if (!selects[index]) return 0;
+  return selects[index].value || 0;
+}
 
-  var height = parseFloat(document.querySelector('#height')?.value || 0);
-  var heightInc = parseFraction(document.querySelector('#heightInc')?.value);
+function getEffectiveSize() {
+  var width = parseFloat(getSelectValue(1) || 0);
+  var widthInc = parseFraction(getSelectValue(2));
+
+  var height = parseFloat(getSelectValue(3) || 0);
+  var heightInc = parseFraction(getSelectValue(4));
 
   return {
     width: width + widthInc,
