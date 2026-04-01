@@ -3,7 +3,7 @@
   if (!path.includes('/product-p/')) return;
 
   var TABLES = {};
-  var TABLES_URL = 'https://cdn.jsdelivr.net/gh/YOURUSER/volusion-configurator/pricing/tables.json';
+  var TABLES_URL = 'https://cdn.jsdelivr.net/gh/bodovera/volusion-configurator/pricing/tables.json';
 
   function updatePriceDisplay(price) {
     console.log('PRICE:', price);
