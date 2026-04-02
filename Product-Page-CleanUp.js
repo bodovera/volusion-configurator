@@ -13,6 +13,39 @@
     el.setAttribute("aria-hidden", "true");
   }
 
+  function hideProductCode() {
+    document.querySelectorAll("[data-product-code]").forEach((el) => {
+      hide(el);
+      log("Hid product code container", el);
+    });
+  }
+
+  function hideConfigPrice() {
+    const all = document.querySelectorAll("div, p, span, label");
+
+    all.forEach((el) => {
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
+
+      if (txt === "CONFIG_PRICE:" || txt === "CONFIG_PRICE") {
+        hide(el);
+
+        let next = el.nextElementSibling;
+        if (next) hide(next);
+
+        log("Hid CONFIG_PRICE label and next block", el, next);
+      }
+    });
+
+    document.querySelectorAll("select").forEach((select) => {
+      const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
+      if (optionText.includes("CALCULATED PRICE|+")) {
+        hide(select);
+        if (select.parentElement) hide(select.parentElement);
+        log("Hid CONFIG_PRICE select", select);
+      }
+    });
+  }
+
   function cleanPriceLabel() {
     document.querySelectorAll(".ProductPrice_Name, #ProductPrice_Name").forEach((el) => {
       const txt = (el.textContent || "").trim();
@@ -28,59 +61,9 @@
     });
   }
 
-  function hideProductCodeByText() {
-    const all = document.querySelectorAll("p, div, span, li, td");
-    all.forEach((el) => {
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
-      if (txt.startsWith("Product Code:")) {
-        hide(el);
-        log("Hid Product Code:", txt);
-      }
-    });
-  }
-
-  function hideConfigPriceRow() {
-    const all = document.querySelectorAll("label, div, p, span, li, td");
-    all.forEach((el) => {
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
-
-      if (txt === "CONFIG_PRICE:" || txt === "CONFIG_PRICE") {
-        const container =
-          el.closest("tr") ||
-          el.parentElement ||
-          el;
-        hide(container);
-        log("Hid CONFIG_PRICE label/container");
-      }
-
-      if (txt.includes("CALCULATED PRICE|+")) {
-        const container =
-          el.closest("tr") ||
-          el.parentElement?.parentElement ||
-          el.parentElement ||
-          el;
-        hide(container);
-        log("Hid CONFIG_PRICE dropdown/container");
-      }
-    });
-
-    document.querySelectorAll("select").forEach((select) => {
-      const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
-      if (optionText.includes("CALCULATED PRICE|+")) {
-        const container =
-          select.closest("tr") ||
-          select.parentElement?.parentElement ||
-          select.parentElement ||
-          select;
-        hide(container);
-        log("Hid CONFIG_PRICE select by option text");
-      }
-    });
-  }
-
   function run() {
-    hideProductCodeByText();
-    hideConfigPriceRow();
+    hideProductCode();
+    hideConfigPrice();
     cleanPriceLabel();
   }
 
