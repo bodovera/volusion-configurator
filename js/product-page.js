@@ -9,6 +9,17 @@
 
   let tables = null;
 
+  const FRACTIONS = {
+    "0": 0,
+    "18": 0.125,
+    "14": 0.25,
+    "38": 0.375,
+    "12": 0.5,
+    "58": 0.625,
+    "34": 0.75,
+    "78": 0.875
+  };
+
   function log(...args) {
     if (DEBUG) console.log("[Pricing]", ...args);
   }
@@ -27,43 +38,46 @@
     return tables;
   }
 
-  function getHeadingBlock(labelText) {
-    const els = document.querySelectorAll("h1, h2, h3, h4, h5, h6, p, div, span, label");
-    for (const el of els) {
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
-      if (txt === labelText.toUpperCase()) {
-        return el;
-      }
-    }
-    return null;
+  function getProductCode() {
+    const el = document.querySelector("[data-product-code]");
+    if (!el) return "default";
+    return (el.getAttribute("data-product-code") || "default").trim();
   }
 
-  function getFirstSelectAfterHeading(labelText) {
-    const heading = getHeadingBlock(labelText);
-    if (!heading) {
-      log("Heading not found:", labelText);
-      return null;
+  function getSelectedDoogmaValue(select) {
+    if (!select) return 0;
+    const opt = select.options[select.selectedIndex];
+    if (!opt) return 0;
+    return (opt.getAttribute("data-doogma-value") || "0").trim();
+  }
+
+  function getWholeAndFraction(wholeSelector, fractionSelector, label) {
+    const wholeSelect = document.querySelector(`select.${wholeSelector}`);
+    const fractionSelect = document.querySelector(`select.${fractionSelector}`);
+
+    if (!wholeSelect) {
+      log(`${label} whole select not found`, wholeSelector);
+      return 0;
     }
 
-    let node = heading.nextElementSibling;
-    while (node) {
-      const select = node.matches?.("select") ? node : node.querySelector?.("select");
-      if (select) return select;
-      node = node.nextElementSibling;
-    }
+    const wholeRaw = getSelectedDoogmaValue(wholeSelect);
+    const fractionRaw = fractionSelect ? getSelectedDoogmaValue(fractionSelect) : "0";
 
-    log("Select not found after heading:", labelText);
-    return null;
+    const whole = parseFloat(wholeRaw) || 0;
+    const fraction = FRACTIONS[fractionRaw] ?? 0;
+
+    log(`${label} whole raw:`, wholeRaw, "=>", whole);
+    log(`${label} fraction raw:`, fractionRaw, "=>", fraction);
+
+    return whole + fraction;
   }
 
   function getWidth() {
-    const select = getFirstSelectAfterHeading("Width");
-    return select ? parseFloat(select.value || 0) || 0 : 0;
+    return getWholeAndFraction("doogma-width", "doogma-widthinc", "Width");
   }
 
   function getLength() {
-    const select = getFirstSelectAfterHeading("Length");
-    return select ? parseFloat(select.value || 0) || 0 : 0;
+    return getWholeAndFraction("doogma-length", "doogma-lengthinc", "Length");
   }
 
   function roundUp(value, breaks) {
@@ -77,30 +91,24 @@
     return sorted.length ? sorted[sorted.length - 1] : n;
   }
 
-  function findProductCode() {
-    const all = document.querySelectorAll("p, div, span, td, li");
-    for (const el of all) {
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
-      if (txt.startsWith("Product Code:")) {
-        return txt.replace("Product Code:", "").trim();
-      }
-    }
-    return "default";
-  }
+  function getContext(allTables) {
+    const productCode = getProductCode();
 
-  function getPricingContext(allTables) {
-    const productCode = findProductCode();
-    return (
+    const context =
       (allTables.products && allTables.products[productCode]) ||
       allTables[productCode] ||
       allTables.default ||
-      null
-    );
+      null;
+
+    log("Product code:", productCode);
+    log("Pricing context:", context);
+
+    return context;
   }
 
   function getBasePrice(context, width, length) {
     const widthBreaks = context.widthBreaks || context.widths || [];
-    const lengthBreaks = context.lengthBreaks || context.heights || context.lengths || [];
+    const lengthBreaks = context.lengthBreaks || context.lengths || context.heights || [];
 
     const useWidth = roundUp(width, widthBreaks);
     const useLength = roundUp(length, lengthBreaks);
@@ -114,6 +122,12 @@
     ) {
       basePrice = parseFloat(context.table[String(useWidth)][String(useLength)]) || 0;
     }
+
+    log("Lookup keys tried:", {
+      useWidth,
+      useLength,
+      availableWidths: Object.keys(context.table || {})
+    });
 
     return { basePrice, useWidth, useLength };
   }
@@ -135,7 +149,7 @@
 
     for (const select of selects) {
       const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
-      if (optionText.includes("CALCULATED PRICE|+")) {
+      if (optionText.includes("CALCULATED PRICE")) {
         return select;
       }
     }
@@ -147,7 +161,7 @@
     const select = findConfigPriceSelect();
     if (!select || !select.options.length) {
       log("CONFIG_PRICE select not found");
-      return false;
+      return;
     }
 
     const formatted = Number(price || 0).toFixed(2);
@@ -155,29 +169,22 @@
     select.selectedIndex = 0;
     select.dispatchEvent(new Event("change", { bubbles: true }));
 
-    log("Injected price into CONFIG_PRICE:", formatted);
-    return true;
+    log("Injected CONFIG_PRICE:", formatted);
   }
 
   async function updatePrice() {
     try {
       const allTables = await loadTables();
-      const context = getPricingContext(allTables);
-
-      if (!context) {
-        log("No pricing context found");
-        return;
-      }
+      const context = getContext(allTables);
+      if (!context) return;
 
       const width = getWidth();
       const length = getLength();
 
       const { basePrice, useWidth, useLength } = getBasePrice(context, width, length);
 
-      log("Width entered:", width);
-      log("Length entered:", length);
-      log("Width used:", useWidth);
-      log("Length used:", useLength);
+      log("Entered dimensions:", { width, length });
+      log("Rounded dimensions:", { useWidth, useLength });
       log("Base price:", basePrice);
 
       updateVisiblePrice(basePrice);
