@@ -56,17 +56,46 @@
     ).trim();
   }
 
-  function getBucket(value) {
-    const breaks = [24, 30, 36, 42, 48, 54, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168];
+  function getSelectBreakpoints(select) {
+    if (!select) return [];
+
+    const values = [];
+
+    Array.from(select.options).forEach(function (option) {
+      const raw = (
+        option.getAttribute("data-doogma-value") ||
+        option.textContent ||
+        option.value ||
+        ""
+      ).trim();
+
+      const num = parseFraction(raw);
+
+      if (!isNaN(num) && num > 0) {
+        values.push(num);
+      }
+    });
+
+    return Array.from(new Set(values)).sort(function (a, b) {
+      return a - b;
+    });
+  }
+
+  function getBucket(value, breaks) {
+    if (!breaks || !breaks.length) return 0;
+
     for (let i = 0; i < breaks.length; i++) {
       if (value <= breaks[i]) return breaks[i];
     }
+
     return breaks[breaks.length - 1];
   }
 
   function findOptionGroups() {
     const groups = [];
-    const headings = document.querySelectorAll("strong[role='heading'], .doogma h1, .doogma h2, .doogma h3, .doogma h4, .doogma h5, .doogma h6");
+    const headings = document.querySelectorAll(
+      "strong[role='heading'], .doogma h1, .doogma h2, .doogma h3, .doogma h4, .doogma h5, .doogma h6"
+    );
 
     headings.forEach(function (heading) {
       const label = normalizeLabel(heading.textContent);
@@ -96,7 +125,9 @@
 
   function getGroupByLabel(groups, labelName) {
     const target = normalizeLabel(labelName);
-    return groups.find(g => g.label === target) || null;
+    return groups.find(function (g) {
+      return g.label === target;
+    }) || null;
   }
 
   function setSelectToBucket(select, bucket) {
@@ -109,7 +140,14 @@
       const textVal = (option.textContent || "").trim();
       const rawVal = (option.value || "").trim();
 
-      if (dataVal === bucketStr || textVal === bucketStr || rawVal === bucketStr) {
+      if (
+        dataVal === bucketStr ||
+        textVal === bucketStr ||
+        rawVal === bucketStr ||
+        parseFraction(dataVal) === bucket ||
+        parseFraction(textVal) === bucket ||
+        parseFraction(rawVal) === bucket
+      ) {
         select.selectedIndex = i;
         select.value = option.value;
         select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -145,6 +183,9 @@
     const valuesWidthSelect = valuesGroup.selects[0] || null;
     const valuesLengthSelect = valuesGroup.selects[1] || null;
 
+    const widthBreaks = getSelectBreakpoints(valuesWidthSelect);
+    const lengthBreaks = getSelectBreakpoints(valuesLengthSelect);
+
     const width = parseFraction(getSelectedOptionText(widthSelect));
     const widthInc = parseFraction(getSelectedOptionText(widthIncSelect));
     const length = parseFraction(getSelectedOptionText(lengthSelect));
@@ -153,17 +194,19 @@
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
-    const widthBucket = getBucket(actualWidth);
-    const lengthBucket = getBucket(actualLength);
+    const widthBucket = getBucket(actualWidth, widthBreaks);
+    const lengthBucket = getBucket(actualLength, lengthBreaks);
 
     console.log("Bucket script:", {
       width,
       widthInc,
       actualWidth,
+      widthBreaks,
       widthBucket,
       length,
       lengthInc,
       actualLength,
+      lengthBreaks,
       lengthBucket
     });
 
@@ -185,8 +228,8 @@
 
     const watched = [];
 
-    if (widthGroup) watched.push(...widthGroup.selects);
-    if (lengthGroup) watched.push(...lengthGroup.selects);
+    if (widthGroup) watched.push.apply(watched, widthGroup.selects);
+    if (lengthGroup) watched.push.apply(watched, lengthGroup.selects);
 
     watched.forEach(function (select) {
       select.addEventListener("change", function () {
