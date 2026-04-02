@@ -21,27 +21,26 @@
   }
 
   function hideConfigPrice() {
-    const all = document.querySelectorAll("div, p, span, label");
-
-    all.forEach((el) => {
+    document.querySelectorAll("strong, div, p, span, label").forEach((el) => {
       const txt = (el.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
 
       if (txt === "CONFIG_PRICE:" || txt === "CONFIG_PRICE") {
-        hide(el);
-
-        let next = el.nextElementSibling;
-        if (next) hide(next);
-
-        log("Hid CONFIG_PRICE label and next block", el, next);
+        const wrap = el.closest(".flex.flex-wrap") || el.parentElement || el;
+        hide(wrap);
+        log("Hid CONFIG_PRICE wrapper", wrap);
       }
     });
 
     document.querySelectorAll("select").forEach((select) => {
       const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
-      if (optionText.includes("CALCULATED PRICE|+")) {
-        hide(select);
-        if (select.parentElement) hide(select.parentElement);
-        log("Hid CONFIG_PRICE select", select);
+      if (optionText.includes("CALCULATED PRICE")) {
+        const wrap =
+          select.closest(".flex.flex-wrap") ||
+          select.closest(".w-100") ||
+          select.parentElement ||
+          select;
+        hide(wrap);
+        log("Hid CONFIG_PRICE select wrapper", wrap);
       }
     });
   }
