@@ -157,20 +157,25 @@
     return null;
   }
 
-  function injectPrice(price) {
-    const select = findConfigPriceSelect();
-    if (!select || !select.options.length) {
-      log("CONFIG_PRICE select not found");
-      return;
-    }
+function injectPrice(price) {
+  const select = findConfigPriceSelect();
 
-    const formatted = Number(price || 0).toFixed(2);
-    select.options[0].text = `Calculated Price|+${formatted}`;
-    select.selectedIndex = 0;
-
-    log("Injected CONFIG_PRICE:", formatted);
+  if (!select || !select.options.length) {
+    log("CONFIG_PRICE select not found");
+    return;
   }
 
+  const formatted = Number(price || 0).toFixed(2);
+
+  // Only update the hidden option text
+  select.options[0].text = `Calculated Price|+${formatted}`;
+
+  // Keep it selected
+  select.selectedIndex = 0;
+
+  log("Injected CONFIG_PRICE (NO change event):", formatted);
+}
+  
   async function updatePrice() {
     try {
       const allTables = await loadTables();
