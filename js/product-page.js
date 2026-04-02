@@ -67,70 +67,34 @@
     return breaks.length ? breaks[breaks.length - 1] : 0;
   }
 
-  function setSelectToNumber(select, targetNumber) {
+  function setSelectByVisibleText(select, targetText) {
     if (!select) return false;
 
-    console.log("Trying to set select", {
-      className: select.className,
-      targetNumber: targetNumber,
-      currentText: getSelectedText(select)
-    });
+    const target = String(targetText).trim();
 
     for (let i = 0; i < select.options.length; i++) {
       const opt = select.options[i];
       const txt = (opt.textContent || "").trim();
-      const num = parseDimension(txt);
 
-      console.log("Checking option", {
-        index: i,
-        txt: txt,
-        num: num,
-        optValue: opt.value
-      });
-
-      if (num === targetNumber) {
+      if (txt === target) {
         select.selectedIndex = i;
         select.value = opt.value;
-
-        console.log("Matched and set", {
-          index: i,
-          txt: txt,
-          optValue: opt.value,
-          selectedTextNow: getSelectedText(select),
-          selectedIndexNow: select.selectedIndex,
-          selectValueNow: select.value
-        });
-
+        select.dispatchEvent(new Event("change", { bubbles: true }));
         return true;
       }
     }
 
-    console.log("No match found", {
-      targetNumber: targetNumber,
-      options: Array.from(select.options).map(function (o) {
-        return (o.textContent || "").trim();
-      })
-    });
-
     return false;
   }
 
-  function updateBucketValues() {
+  function updateBuckets() {
     const widthSelect = document.querySelector("select.doogma-width");
     const widthIncSelect = document.querySelector("select.doogma-widthinc");
     const lengthSelect = document.querySelector("select.doogma-length");
     const lengthIncSelect = document.querySelector("select.doogma-lengthinc");
+
     const valuesWidthSelect = document.querySelector("select.doogma-values_width");
     const valuesLengthSelect = document.querySelector("select.doogma-values_length");
-
-    console.log("Found selects", {
-      width: !!widthSelect,
-      widthInc: !!widthIncSelect,
-      length: !!lengthSelect,
-      lengthInc: !!lengthIncSelect,
-      valuesWidth: !!valuesWidthSelect,
-      valuesLength: !!valuesLengthSelect
-    });
 
     if (!widthSelect || !widthIncSelect || !lengthSelect || !lengthIncSelect || !valuesWidthSelect || !valuesLengthSelect) {
       return;
@@ -144,56 +108,31 @@
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
-    const widthBreaks = getBreakpoints(valuesWidthSelect);
-    const lengthBreaks = getBreakpoints(valuesLengthSelect);
+    const widthBucket = getBucket(actualWidth, getBreakpoints(valuesWidthSelect));
+    const lengthBucket = getBucket(actualLength, getBreakpoints(valuesLengthSelect));
 
-    const widthBucket = getBucket(actualWidth, widthBreaks);
-    const lengthBucket = getBucket(actualLength, lengthBreaks);
-
-    console.log("Calculated buckets", {
-      width,
-      widthInc,
-      actualWidth,
-      widthBreaks,
-      widthBucket,
-      length,
-      lengthInc,
-      actualLength,
-      lengthBreaks,
-      lengthBucket
-    });
-
-    const widthSet = setSelectToNumber(valuesWidthSelect, widthBucket);
-    const lengthSet = setSelectToNumber(valuesLengthSelect, lengthBucket);
-
-    console.log("Final result", {
-      widthSet: widthSet,
-      lengthSet: lengthSet,
-      valuesWidthNow: getSelectedText(valuesWidthSelect),
-      valuesLengthNow: getSelectedText(valuesLengthSelect)
-    });
+    setSelectByVisibleText(valuesWidthSelect, String(widthBucket));
+    setSelectByVisibleText(valuesLengthSelect, String(lengthBucket));
   }
 
   function bind() {
-    [
+    const watched = [
       document.querySelector("select.doogma-width"),
       document.querySelector("select.doogma-widthinc"),
       document.querySelector("select.doogma-length"),
       document.querySelector("select.doogma-lengthinc")
-    ]
-      .filter(Boolean)
-      .forEach(function (select) {
-        select.addEventListener("change", function () {
-          console.log("Triggering update from", select.className, getSelectedText(select));
-          updateBucketValues();
-        });
+    ].filter(Boolean);
+
+    watched.forEach(function (select) {
+      select.addEventListener("change", function () {
+        setTimeout(updateBuckets, 25);
       });
+    });
   }
 
   ready(function () {
     setTimeout(function () {
       bind();
-      console.log("Bucket debug script ready");
-    }, 800);
+    }, 500);
   });
 })();
