@@ -1,8 +1,6 @@
 (function () {
   "use strict";
 
-  let isUpdatingBuckets = false;
-
   function ready(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn);
@@ -72,27 +70,52 @@
   function setSelectToNumber(select, targetNumber) {
     if (!select) return false;
 
+    console.log("Trying to set select", {
+      className: select.className,
+      targetNumber: targetNumber,
+      currentText: getSelectedText(select)
+    });
+
     for (let i = 0; i < select.options.length; i++) {
       const opt = select.options[i];
       const txt = (opt.textContent || "").trim();
       const num = parseDimension(txt);
 
+      console.log("Checking option", {
+        index: i,
+        txt: txt,
+        num: num,
+        optValue: opt.value
+      });
+
       if (num === targetNumber) {
-        if (select.selectedIndex !== i) {
-          select.selectedIndex = i;
-          select.value = opt.value;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-        }
+        select.selectedIndex = i;
+        select.value = opt.value;
+
+        console.log("Matched and set", {
+          index: i,
+          txt: txt,
+          optValue: opt.value,
+          selectedTextNow: getSelectedText(select),
+          selectedIndexNow: select.selectedIndex,
+          selectValueNow: select.value
+        });
+
         return true;
       }
     }
+
+    console.log("No match found", {
+      targetNumber: targetNumber,
+      options: Array.from(select.options).map(function (o) {
+        return (o.textContent || "").trim();
+      })
+    });
 
     return false;
   }
 
   function updateBucketValues() {
-    if (isUpdatingBuckets) return;
-
     const widthSelect = document.querySelector("select.doogma-width");
     const widthIncSelect = document.querySelector("select.doogma-widthinc");
     const lengthSelect = document.querySelector("select.doogma-length");
@@ -100,8 +123,16 @@
     const valuesWidthSelect = document.querySelector("select.doogma-values_width");
     const valuesLengthSelect = document.querySelector("select.doogma-values_length");
 
+    console.log("Found selects", {
+      width: !!widthSelect,
+      widthInc: !!widthIncSelect,
+      length: !!lengthSelect,
+      lengthInc: !!lengthIncSelect,
+      valuesWidth: !!valuesWidthSelect,
+      valuesLength: !!valuesLengthSelect
+    });
+
     if (!widthSelect || !widthIncSelect || !lengthSelect || !lengthIncSelect || !valuesWidthSelect || !valuesLengthSelect) {
-      console.log("Bucket bridge: missing one or more selects");
       return;
     }
 
@@ -113,47 +144,56 @@
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
-    const widthBucket = getBucket(actualWidth, getBreakpoints(valuesWidthSelect));
-    const lengthBucket = getBucket(actualLength, getBreakpoints(valuesLengthSelect));
+    const widthBreaks = getBreakpoints(valuesWidthSelect);
+    const lengthBreaks = getBreakpoints(valuesLengthSelect);
 
-    console.log("Bucket bridge:", {
+    const widthBucket = getBucket(actualWidth, widthBreaks);
+    const lengthBucket = getBucket(actualLength, lengthBreaks);
+
+    console.log("Calculated buckets", {
       width,
       widthInc,
       actualWidth,
+      widthBreaks,
       widthBucket,
       length,
       lengthInc,
       actualLength,
+      lengthBreaks,
       lengthBucket
     });
 
-    isUpdatingBuckets = true;
-    try {
-      setSelectToNumber(valuesWidthSelect, widthBucket);
-      setSelectToNumber(valuesLengthSelect, lengthBucket);
-    } finally {
-      setTimeout(function () {
-        isUpdatingBuckets = false;
-      }, 50);
-    }
+    const widthSet = setSelectToNumber(valuesWidthSelect, widthBucket);
+    const lengthSet = setSelectToNumber(valuesLengthSelect, lengthBucket);
+
+    console.log("Final result", {
+      widthSet: widthSet,
+      lengthSet: lengthSet,
+      valuesWidthNow: getSelectedText(valuesWidthSelect),
+      valuesLengthNow: getSelectedText(valuesLengthSelect)
+    });
   }
 
   function bind() {
-    const watched = [
+    [
       document.querySelector("select.doogma-width"),
       document.querySelector("select.doogma-widthinc"),
       document.querySelector("select.doogma-length"),
       document.querySelector("select.doogma-lengthinc")
-    ].filter(Boolean);
-
-    watched.forEach(function (select) {
-      select.addEventListener("change", function () {
-        setTimeout(updateBucketValues, 10);
+    ]
+      .filter(Boolean)
+      .forEach(function (select) {
+        select.addEventListener("change", function () {
+          console.log("Triggering update from", select.className, getSelectedText(select));
+          updateBucketValues();
+        });
       });
-    });
   }
 
   ready(function () {
-    setTimeout(bind, 800);
+    setTimeout(function () {
+      bind();
+      console.log("Bucket debug script ready");
+    }, 800);
   });
 })();
