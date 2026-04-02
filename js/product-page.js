@@ -1,217 +1,211 @@
 (function () {
   "use strict";
 
-  const DEBUG = true;
-
-  const CONFIG = {
-    tablesUrl: "https://bodovera.github.io/volusion-configurator/pricing/tables.json"
-  };
-
-  let tables = null;
-
-  const FRACTIONS = {
-    "0": 0,
-    "18": 0.125,
-    "14": 0.25,
-    "38": 0.375,
-    "12": 0.5,
-    "58": 0.625,
-    "34": 0.75,
-    "78": 0.875
-  };
-
-  function log(...args) {
-    if (DEBUG) console.log("[Pricing]", ...args);
+  function ready(fn) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn);
+    } else {
+      fn();
+    }
   }
 
-  function money(n) {
-    return "$" + Number(n || 0).toFixed(2);
+  function normalizeLabel(str) {
+    return (str || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
-  async function loadTables() {
-    if (tables) return tables;
+  function parseFraction(value) {
+    if (value == null) return 0;
 
-    const res = await fetch(CONFIG.tablesUrl, { cache: "no-store" });
-    if (!res.ok) throw new Error("Could not load tables.json");
-    tables = await res.json();
-    log("Loaded tables:", tables);
-    return tables;
-  }
+    let str = String(value).trim();
+    if (!str) return 0;
 
-  function getProductCode() {
-    const el = document.querySelector("[data-product-code]");
-    if (!el) return "default";
-    return (el.getAttribute("data-product-code") || "default").trim();
-  }
+    str = str.replace(/"/g, "").trim();
 
-  function getSelectedDoogmaValue(select) {
-    if (!select) return 0;
-    const opt = select.options[select.selectedIndex];
-    if (!opt) return 0;
-    return (opt.getAttribute("data-doogma-value") || "0").trim();
-  }
-
-  function getWholeAndFraction(wholeSelector, fractionSelector, label) {
-    const wholeSelect = document.querySelector(`select.${wholeSelector}`);
-    const fractionSelect = document.querySelector(`select.${fractionSelector}`);
-
-    if (!wholeSelect) {
-      log(`${label} whole select not found`, wholeSelector);
-      return 0;
+    if (/^\d+(\.\d+)?$/.test(str)) {
+      return parseFloat(str);
     }
 
-    const wholeRaw = getSelectedDoogmaValue(wholeSelect);
-    const fractionRaw = fractionSelect ? getSelectedDoogmaValue(fractionSelect) : "0";
-
-    const whole = parseFloat(wholeRaw) || 0;
-    const fraction = FRACTIONS[fractionRaw] ?? 0;
-
-    log(`${label} whole raw:`, wholeRaw, "=>", whole);
-    log(`${label} fraction raw:`, fractionRaw, "=>", fraction);
-
-    return whole + fraction;
-  }
-
-  function getWidth() {
-    return getWholeAndFraction("doogma-width", "doogma-widthinc", "Width");
-  }
-
-  function getLength() {
-    return getWholeAndFraction("doogma-length", "doogma-lengthinc", "Length");
-  }
-
-  function roundUp(value, breaks) {
-    const n = Number(value || 0);
-    const sorted = (breaks || []).map(Number).sort((a, b) => a - b);
-
-    for (const b of sorted) {
-      if (n <= b) return b;
+    if (/^\d+\s+\d+\/\d+$/.test(str)) {
+      const parts = str.split(/\s+/);
+      const whole = parseFloat(parts[0]) || 0;
+      const frac = parts[1].split("/");
+      const num = parseFloat(frac[0]) || 0;
+      const den = parseFloat(frac[1]) || 1;
+      return whole + (den ? num / den : 0);
     }
 
-    return sorted.length ? sorted[sorted.length - 1] : n;
-  }
-
-  function getContext(allTables) {
-    const productCode = getProductCode();
-
-    const context =
-      (allTables.products && allTables.products[productCode]) ||
-      allTables[productCode] ||
-      allTables.default ||
-      null;
-
-    log("Product code:", productCode);
-    log("Pricing context:", context);
-
-    return context;
-  }
-
-  function getBasePrice(context, width, length) {
-    const widthBreaks = context.widthBreaks || context.widths || [];
-    const lengthBreaks = context.lengthBreaks || context.lengths || context.heights || [];
-
-    const useWidth = roundUp(width, widthBreaks);
-    const useLength = roundUp(length, lengthBreaks);
-
-    let basePrice = 0;
-
-    if (
-      context.table &&
-      context.table[String(useWidth)] &&
-      context.table[String(useWidth)][String(useLength)] != null
-    ) {
-      basePrice = parseFloat(context.table[String(useWidth)][String(useLength)]) || 0;
+    if (/^\d+\/\d+$/.test(str)) {
+      const frac = str.split("/");
+      const num = parseFloat(frac[0]) || 0;
+      const den = parseFloat(frac[1]) || 1;
+      return den ? num / den : 0;
     }
 
-    log("Lookup keys tried:", {
-      useWidth,
-      useLength,
-      availableWidths: Object.keys(context.table || {})
-    });
-
-    return { basePrice, useWidth, useLength };
+    return 0;
   }
 
-  function updateVisiblePrice(price) {
-    const formatted = money(price);
-
-    document.querySelectorAll(".ProductPrice, [itemprop='price'], #price, .price").forEach((el) => {
-      el.textContent = formatted;
-    });
-
-    document.querySelectorAll(".ProductPrice_Name, #ProductPrice_Name").forEach((el) => {
-      el.textContent = "Product Price";
-    });
+  function getSelectedOptionText(select) {
+    if (!select) return "";
+    const option = select.options[select.selectedIndex];
+    if (!option) return "";
+    return (
+      option.getAttribute("data-doogma-value") ||
+      option.textContent ||
+      option.value ||
+      ""
+    ).trim();
   }
 
-  function findConfigPriceSelect() {
-    const selects = document.querySelectorAll("select");
+  function getBucket(value) {
+    const breaks = [24, 30, 36, 42, 48, 54, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168];
+    for (let i = 0; i < breaks.length; i++) {
+      if (value <= breaks[i]) return breaks[i];
+    }
+    return breaks[breaks.length - 1];
+  }
 
-    for (const select of selects) {
-      const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
-      if (optionText.includes("CALCULATED PRICE")) {
-        return select;
+  function findOptionGroups() {
+    const groups = [];
+    const headings = document.querySelectorAll("strong[role='heading'], .doogma h1, .doogma h2, .doogma h3, .doogma h4, .doogma h5, .doogma h6");
+
+    headings.forEach(function (heading) {
+      const label = normalizeLabel(heading.textContent);
+      if (!label) return;
+
+      let container = heading.closest("div");
+      if (!container) return;
+
+      let selects = container.querySelectorAll("select");
+      if (!selects.length && container.parentElement) {
+        selects = container.parentElement.querySelectorAll("select");
+        if (selects.length) container = container.parentElement;
+      }
+
+      if (selects.length) {
+        groups.push({
+          label: label,
+          heading: heading,
+          container: container,
+          selects: Array.from(selects)
+        });
+      }
+    });
+
+    return groups;
+  }
+
+  function getGroupByLabel(groups, labelName) {
+    const target = normalizeLabel(labelName);
+    return groups.find(g => g.label === target) || null;
+  }
+
+  function setSelectToBucket(select, bucket) {
+    if (!select) return false;
+    const bucketStr = String(bucket);
+
+    for (let i = 0; i < select.options.length; i++) {
+      const option = select.options[i];
+      const dataVal = (option.getAttribute("data-doogma-value") || "").trim();
+      const textVal = (option.textContent || "").trim();
+      const rawVal = (option.value || "").trim();
+
+      if (dataVal === bucketStr || textVal === bucketStr || rawVal === bucketStr) {
+        select.selectedIndex = i;
+        select.value = option.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
       }
     }
 
-    return null;
+    return false;
   }
 
-function injectPrice(price) {
-  const select = findConfigPriceSelect();
+  function updateBuckets() {
+    const groups = findOptionGroups();
 
-  if (!select || !select.options.length) {
-    log("CONFIG_PRICE select not found");
-    return;
+    const widthGroup = getGroupByLabel(groups, "width");
+    const lengthGroup = getGroupByLabel(groups, "length");
+    const valuesGroup = getGroupByLabel(groups, "values");
+
+    if (!widthGroup || !lengthGroup || !valuesGroup) {
+      console.log("Bucket script: missing one or more groups", {
+        widthGroup: !!widthGroup,
+        lengthGroup: !!lengthGroup,
+        valuesGroup: !!valuesGroup
+      });
+      return;
+    }
+
+    const widthSelect = widthGroup.selects[0] || null;
+    const widthIncSelect = widthGroup.selects[1] || null;
+
+    const lengthSelect = lengthGroup.selects[0] || null;
+    const lengthIncSelect = lengthGroup.selects[1] || null;
+
+    const valuesWidthSelect = valuesGroup.selects[0] || null;
+    const valuesLengthSelect = valuesGroup.selects[1] || null;
+
+    const width = parseFraction(getSelectedOptionText(widthSelect));
+    const widthInc = parseFraction(getSelectedOptionText(widthIncSelect));
+    const length = parseFraction(getSelectedOptionText(lengthSelect));
+    const lengthInc = parseFraction(getSelectedOptionText(lengthIncSelect));
+
+    const actualWidth = width + widthInc;
+    const actualLength = length + lengthInc;
+
+    const widthBucket = getBucket(actualWidth);
+    const lengthBucket = getBucket(actualLength);
+
+    console.log("Bucket script:", {
+      width,
+      widthInc,
+      actualWidth,
+      widthBucket,
+      length,
+      lengthInc,
+      actualLength,
+      lengthBucket
+    });
+
+    const widthSet = setSelectToBucket(valuesWidthSelect, widthBucket);
+    const lengthSet = setSelectToBucket(valuesLengthSelect, lengthBucket);
+
+    console.log("Bucket set results:", {
+      widthSet,
+      lengthSet,
+      valuesWidthSelected: getSelectedOptionText(valuesWidthSelect),
+      valuesLengthSelected: getSelectedOptionText(valuesLengthSelect)
+    });
   }
 
-  const formatted = Number(price || 0).toFixed(2);
+  function bindEvents() {
+    const groups = findOptionGroups();
+    const widthGroup = getGroupByLabel(groups, "width");
+    const lengthGroup = getGroupByLabel(groups, "length");
 
-  // Only update the hidden option text
-  select.options[0].text = `Calculated Price|+${formatted}`;
+    const watched = [];
 
-  // Keep it selected
-  select.selectedIndex = 0;
+    if (widthGroup) watched.push(...widthGroup.selects);
+    if (lengthGroup) watched.push(...lengthGroup.selects);
 
-  log("Injected CONFIG_PRICE (NO change event):", formatted);
-}
-  
-  async function updatePrice() {
-    try {
-      const allTables = await loadTables();
-      const context = getContext(allTables);
-      if (!context) return;
+    watched.forEach(function (select) {
+      select.addEventListener("change", function () {
+        setTimeout(updateBuckets, 0);
+      });
+    });
 
-      const width = getWidth();
-      const length = getLength();
-
-      const { basePrice, useWidth, useLength } = getBasePrice(context, width, length);
-
-      log("Entered dimensions:", { width, length });
-      log("Rounded dimensions:", { useWidth, useLength });
-      log("Base price:", basePrice);
-
-      updateVisiblePrice(basePrice);
-      injectPrice(basePrice);
-    } catch (err) {
-      console.error("[Pricing] Error:", err);
+    const form = document.querySelector("form");
+    if (form) {
+      form.addEventListener("submit", function () {
+        updateBuckets();
+      });
     }
   }
 
-  function bind() {
-    document.addEventListener("change", updatePrice);
-    document.addEventListener("input", updatePrice);
-  }
-
-  async function init() {
-    await loadTables();
-    bind();
-    updatePrice();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  ready(function () {
+    setTimeout(function () {
+      updateBuckets();
+      bindEvents();
+    }, 300);
+  });
 })();
