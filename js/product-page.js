@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  let isUpdatingBuckets = false;
+
   function ready(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn);
@@ -12,7 +14,7 @@
   function parseDimension(value) {
     if (value == null) return 0;
 
-    let str = String(value).trim().replace(/"/g, "");
+    const str = String(value).trim().replace(/"/g, "");
     if (!str) return 0;
 
     if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
@@ -45,18 +47,19 @@
   function getBreakpoints(select) {
     if (!select) return [];
 
-    const vals = Array.from(select.options)
+    return Array.from(select.options)
       .map(function (opt) {
         return parseDimension((opt.textContent || "").trim());
       })
       .filter(function (n) {
         return !isNaN(n) && n > 0;
       })
+      .filter(function (n, i, arr) {
+        return arr.indexOf(n) === i;
+      })
       .sort(function (a, b) {
         return a - b;
       });
-
-    return Array.from(new Set(vals));
   }
 
   function getBucket(value, breaks) {
@@ -66,12 +69,7 @@
     return breaks.length ? breaks[breaks.length - 1] : 0;
   }
 
-  function trigger(select) {
-    select.dispatchEvent(new Event("input", { bubbles: true }));
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-
-  function setSelectByBucket(select, bucket) {
+  function setSelectToNumber(select, targetNumber) {
     if (!select) return false;
 
     for (let i = 0; i < select.options.length; i++) {
@@ -79,11 +77,11 @@
       const txt = (opt.textContent || "").trim();
       const num = parseDimension(txt);
 
-      if (num === bucket || txt === String(bucket)) {
+      if (num === targetNumber) {
         if (select.selectedIndex !== i) {
           select.selectedIndex = i;
           select.value = opt.value;
-          trigger(select);
+          select.dispatchEvent(new Event("change", { bubbles: true }));
         }
         return true;
       }
@@ -92,25 +90,18 @@
     return false;
   }
 
-  function updateBuckets() {
+  function updateBucketValues() {
+    if (isUpdatingBuckets) return;
+
     const widthSelect = document.querySelector("select.doogma-width");
     const widthIncSelect = document.querySelector("select.doogma-widthinc");
     const lengthSelect = document.querySelector("select.doogma-length");
     const lengthIncSelect = document.querySelector("select.doogma-lengthinc");
-
     const valuesWidthSelect = document.querySelector("select.doogma-values_width");
     const valuesLengthSelect = document.querySelector("select.doogma-values_length");
 
-    console.log("bucket selects found", {
-      width: !!widthSelect,
-      widthInc: !!widthIncSelect,
-      length: !!lengthSelect,
-      lengthInc: !!lengthIncSelect,
-      valuesWidth: !!valuesWidthSelect,
-      valuesLength: !!valuesLengthSelect
-    });
-
     if (!widthSelect || !widthIncSelect || !lengthSelect || !lengthIncSelect || !valuesWidthSelect || !valuesLengthSelect) {
+      console.log("Bucket bridge: missing one or more selects");
       return;
     }
 
@@ -122,52 +113,47 @@
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
-    const widthBreaks = getBreakpoints(valuesWidthSelect);
-    const lengthBreaks = getBreakpoints(valuesLengthSelect);
+    const widthBucket = getBucket(actualWidth, getBreakpoints(valuesWidthSelect));
+    const lengthBucket = getBucket(actualLength, getBreakpoints(valuesLengthSelect));
 
-    const widthBucket = getBucket(actualWidth, widthBreaks);
-    const lengthBucket = getBucket(actualLength, lengthBreaks);
-
-    const widthSet = setSelectByBucket(valuesWidthSelect, widthBucket);
-    const lengthSet = setSelectByBucket(valuesLengthSelect, lengthBucket);
-
-    console.log("bucket results", {
+    console.log("Bucket bridge:", {
       width,
       widthInc,
       actualWidth,
-      widthBreaks,
       widthBucket,
-      widthSet,
-      valuesWidthNow: getSelectedText(valuesWidthSelect),
       length,
       lengthInc,
       actualLength,
-      lengthBreaks,
-      lengthBucket,
-      lengthSet,
-      valuesLengthNow: getSelectedText(valuesLengthSelect)
+      lengthBucket
     });
+
+    isUpdatingBuckets = true;
+    try {
+      setSelectToNumber(valuesWidthSelect, widthBucket);
+      setSelectToNumber(valuesLengthSelect, lengthBucket);
+    } finally {
+      setTimeout(function () {
+        isUpdatingBuckets = false;
+      }, 50);
+    }
   }
 
   function bind() {
-    [
+    const watched = [
       document.querySelector("select.doogma-width"),
       document.querySelector("select.doogma-widthinc"),
       document.querySelector("select.doogma-length"),
       document.querySelector("select.doogma-lengthinc")
-    ]
-      .filter(Boolean)
-      .forEach(function (select) {
-        select.addEventListener("change", function () {
-          setTimeout(updateBuckets, 50);
-        });
+    ].filter(Boolean);
+
+    watched.forEach(function (select) {
+      select.addEventListener("change", function () {
+        setTimeout(updateBucketValues, 10);
       });
+    });
   }
 
   ready(function () {
-    setTimeout(function () {
-      bind();
-      updateBuckets();
-    }, 500);
+    setTimeout(bind, 800);
   });
 })();
