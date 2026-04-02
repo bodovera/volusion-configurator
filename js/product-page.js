@@ -167,7 +167,6 @@
     const formatted = Number(price || 0).toFixed(2);
     select.options[0].text = `Calculated Price|+${formatted}`;
     select.selectedIndex = 0;
-    select.dispatchEvent(new Event("change", { bubbles: true }));
 
     log("Injected CONFIG_PRICE:", formatted);
   }
