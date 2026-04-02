@@ -1,104 +1,108 @@
 (function () {
-  var path = window.location.pathname.toLowerCase();
+  "use strict";
 
-  if (!path.includes('/product-p/')) return;
+  const DEBUG = false;
 
-  window.PRODUCT_PRICE_TABLE = null;
-  window.PRODUCT_COST_TABLE = null;
+  const TEXT_MATCHES_TO_HIDE = [
+    "ProductCode",
+    "ProductPrice",
+    "ProductPrice_Name",
+    "CONFIG_PRICE",
+    "Calculated Price"
+  ];
 
-  function hideEl(el) {
+  const DIRECT_SELECTORS_TO_HIDE = [
+    '[name="ProductCode"]',
+    '[name="ProductPrice"]',
+    '[name="ProductPrice_Name"]',
+    '#ProductCode',
+    '#ProductPrice',
+    '#ProductPrice_Name',
+    '.ProductCode',
+    '.ProductPrice_Name'
+  ];
+
+  function log(...args) {
+    if (DEBUG) console.log("[CleanUp]", ...args);
+  }
+
+  function hide(el) {
     if (!el) return;
-    el.style.setProperty('display', 'none', 'important');
+    el.style.display = "none";
+    el.setAttribute("aria-hidden", "true");
   }
 
-  function extractQuotedValue(text) {
-    if (!text) return null;
-
-    text = String(text).replace(/\s+/g, ' ').trim();
-
-    var q = text.match(/"([^"]+)"/);
-    if (q && q[1]) {
-      return q[1].replace(/^:\s*/, '').trim();
-    }
-
-    var c = text.match(/:\s*([A-Z0-9_]+)/i);
-    if (c && c[1]) {
-      return c[1].trim();
-    }
-
-    return null;
-  }
-
-  function getHideTarget(node) {
-    if (!node) return null;
-
-    return (
-      node.closest('li') ||
-      node.closest('[data-product-custom-fields] li') ||
-      node.closest('ul li') ||
-      node.closest('div')
-    );
-  }
-
-  function processCustomTableFields() {
-    document.querySelectorAll('b').forEach(function (bold) {
-      var label = (bold.textContent || '').replace(/\s+/g, ' ').trim();
-
-      if (label !== 'PriceTable' && label !== 'CostTable') return;
-
-      var target = getHideTarget(bold);
-      if (!target) return;
-
-      var fullText = (target.textContent || '').replace(/\s+/g, ' ').trim();
-      var value = extractQuotedValue(fullText);
-
-      if (label === 'PriceTable' && value) {
-        window.PRODUCT_PRICE_TABLE = value;
+  function cleanPriceLabel() {
+    const els = document.querySelectorAll(".ProductPrice_Name, #ProductPrice_Name, [name='ProductPrice_Name']");
+    els.forEach((el) => {
+      const txt = (el.textContent || "").trim();
+      if (!txt) return;
+      if (
+        txt.includes("starting at") ||
+        txt.includes("ProductPrice_Name") ||
+        /\d+\s*x\s*\d+/i.test(txt)
+      ) {
+        el.textContent = "Product Price";
       }
-
-      if (label === 'CostTable' && value) {
-        window.PRODUCT_COST_TABLE = value;
-      }
-
-      hideEl(target);
     });
   }
 
-  function hideProductBits() {
-    document.querySelectorAll('[data-product-base-price]').forEach(function (el) {
-      hideEl(el);
+  function hideDirectSelectors() {
+    DIRECT_SELECTORS_TO_HIDE.forEach((selector) => {
+      document.querySelectorAll(selector).forEach(hide);
     });
+  }
 
-    document.querySelectorAll('[data-product-code]').forEach(function (el) {
-      hideEl(el);
+  function hideRowsByText() {
+    const rows = document.querySelectorAll("tr, li, p, div, .form-row, .option-row");
+    rows.forEach((row) => {
+      const txt = (row.textContent || "").replace(/\s+/g, " ").trim();
+      if (!txt) return;
+
+      const shouldHide = TEXT_MATCHES_TO_HIDE.some((needle) => txt.includes(needle));
+      if (shouldHide) hide(row);
     });
+  }
 
-    processCustomTableFields();
+  function hideConfigPriceField() {
+    const selects = document.querySelectorAll("select");
+    selects.forEach((select) => {
+      const name = (select.name || "").toUpperCase();
+      const id = (select.id || "").toUpperCase();
+      const row = select.closest("tr, li, p, div, .form-row, .option-row");
+      const rowText = (row?.textContent || "").toUpperCase();
+
+      if (
+        name.includes("CONFIG_PRICE") ||
+        id.includes("CONFIG_PRICE") ||
+        rowText.includes("CONFIG_PRICE") ||
+        rowText.includes("CALCULATED PRICE")
+      ) {
+        hide(row || select);
+      }
+    });
+  }
+
+  function run() {
+    hideDirectSelectors();
+    hideRowsByText();
+    hideConfigPriceField();
+    cleanPriceLabel();
+    log("cleanup complete");
   }
 
   function init() {
-    hideProductBits();
-    setTimeout(hideProductBits, 300);
-    setTimeout(hideProductBits, 1000);
-    setTimeout(hideProductBits, 2000);
+    run();
 
-    var observer = new MutationObserver(function () {
-      hideProductBits();
-    });
-
+    const observer = new MutationObserver(() => run());
     observer.observe(document.body, {
       childList: true,
       subtree: true
     });
-
-    setTimeout(function () {
-      console.log('Price Table:', window.PRODUCT_PRICE_TABLE);
-      console.log('Cost Table:', window.PRODUCT_COST_TABLE);
-    }, 500);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
   } else {
     init();
   }
