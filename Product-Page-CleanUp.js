@@ -1,26 +1,7 @@
 (function () {
   "use strict";
 
-  const DEBUG = false;
-
-  const TEXT_MATCHES_TO_HIDE = [
-    "ProductCode",
-    "ProductPrice",
-    "ProductPrice_Name",
-    "CONFIG_PRICE",
-    "Calculated Price"
-  ];
-
-  const DIRECT_SELECTORS_TO_HIDE = [
-    '[name="ProductCode"]',
-    '[name="ProductPrice"]',
-    '[name="ProductPrice_Name"]',
-    '#ProductCode',
-    '#ProductPrice',
-    '#ProductPrice_Name',
-    '.ProductCode',
-    '.ProductPrice_Name'
-  ];
+  const DEBUG = true;
 
   function log(...args) {
     if (DEBUG) console.log("[CleanUp]", ...args);
@@ -33,10 +14,10 @@
   }
 
   function cleanPriceLabel() {
-    const els = document.querySelectorAll(".ProductPrice_Name, #ProductPrice_Name, [name='ProductPrice_Name']");
-    els.forEach((el) => {
+    document.querySelectorAll(".ProductPrice_Name, #ProductPrice_Name").forEach((el) => {
       const txt = (el.textContent || "").trim();
       if (!txt) return;
+
       if (
         txt.includes("starting at") ||
         txt.includes("ProductPrice_Name") ||
@@ -47,48 +28,60 @@
     });
   }
 
-  function hideDirectSelectors() {
-    DIRECT_SELECTORS_TO_HIDE.forEach((selector) => {
-      document.querySelectorAll(selector).forEach(hide);
+  function hideProductCodeByText() {
+    const all = document.querySelectorAll("p, div, span, li, td");
+    all.forEach((el) => {
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (txt.startsWith("Product Code:")) {
+        hide(el);
+        log("Hid Product Code:", txt);
+      }
     });
   }
 
-  function hideRowsByText() {
-    const rows = document.querySelectorAll("tr, li, p, div, .form-row, .option-row");
-    rows.forEach((row) => {
-      const txt = (row.textContent || "").replace(/\s+/g, " ").trim();
-      if (!txt) return;
+  function hideConfigPriceRow() {
+    const all = document.querySelectorAll("label, div, p, span, li, td");
+    all.forEach((el) => {
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
 
-      const shouldHide = TEXT_MATCHES_TO_HIDE.some((needle) => txt.includes(needle));
-      if (shouldHide) hide(row);
+      if (txt === "CONFIG_PRICE:" || txt === "CONFIG_PRICE") {
+        const container =
+          el.closest("tr") ||
+          el.parentElement ||
+          el;
+        hide(container);
+        log("Hid CONFIG_PRICE label/container");
+      }
+
+      if (txt.includes("CALCULATED PRICE|+")) {
+        const container =
+          el.closest("tr") ||
+          el.parentElement?.parentElement ||
+          el.parentElement ||
+          el;
+        hide(container);
+        log("Hid CONFIG_PRICE dropdown/container");
+      }
     });
-  }
 
-  function hideConfigPriceField() {
-    const selects = document.querySelectorAll("select");
-    selects.forEach((select) => {
-      const name = (select.name || "").toUpperCase();
-      const id = (select.id || "").toUpperCase();
-      const row = select.closest("tr, li, p, div, .form-row, .option-row");
-      const rowText = (row?.textContent || "").toUpperCase();
-
-      if (
-        name.includes("CONFIG_PRICE") ||
-        id.includes("CONFIG_PRICE") ||
-        rowText.includes("CONFIG_PRICE") ||
-        rowText.includes("CALCULATED PRICE")
-      ) {
-        hide(row || select);
+    document.querySelectorAll("select").forEach((select) => {
+      const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
+      if (optionText.includes("CALCULATED PRICE|+")) {
+        const container =
+          select.closest("tr") ||
+          select.parentElement?.parentElement ||
+          select.parentElement ||
+          select;
+        hide(container);
+        log("Hid CONFIG_PRICE select by option text");
       }
     });
   }
 
   function run() {
-    hideDirectSelectors();
-    hideRowsByText();
-    hideConfigPriceField();
+    hideProductCodeByText();
+    hideConfigPriceRow();
     cleanPriceLabel();
-    log("cleanup complete");
   }
 
   function init() {
