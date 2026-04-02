@@ -15,9 +15,7 @@
     let str = String(value).trim().replace(/"/g, "");
     if (!str) return 0;
 
-    if (/^\d+(\.\d+)?$/.test(str)) {
-      return parseFloat(str);
-    }
+    if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
 
     if (/^\d+\s+\d+\/\d+$/.test(str)) {
       const parts = str.split(/\s+/);
@@ -38,14 +36,13 @@
     return 0;
   }
 
-  function getSelectedDisplayText(select) {
+  function getSelectedText(select) {
     if (!select) return "";
     const opt = select.options[select.selectedIndex];
-    if (!opt) return "";
-    return (opt.textContent || "").trim();
+    return opt ? (opt.textContent || "").trim() : "";
   }
 
-  function getBucketBreakpoints(select) {
+  function getBreakpoints(select) {
     if (!select) return [];
 
     const vals = Array.from(select.options)
@@ -69,12 +66,7 @@
     return breaks.length ? breaks[breaks.length - 1] : 0;
   }
 
-  function qs(sel) {
-    return document.querySelector(sel);
-  }
-
-  function triggerSelectChange(select) {
-    if (!select) return;
+  function trigger(select) {
     select.dispatchEvent(new Event("input", { bubbles: true }));
     select.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -82,18 +74,16 @@
   function setSelectByBucket(select, bucket) {
     if (!select) return false;
 
-    const bucketNum = parseFloat(bucket);
-
     for (let i = 0; i < select.options.length; i++) {
       const opt = select.options[i];
       const txt = (opt.textContent || "").trim();
-      const txtNum = parseDimension(txt);
+      const num = parseDimension(txt);
 
-      if (txtNum === bucketNum || txt === String(bucket)) {
+      if (num === bucket || txt === String(bucket)) {
         if (select.selectedIndex !== i) {
           select.selectedIndex = i;
           select.value = opt.value;
-          triggerSelectChange(select);
+          trigger(select);
         }
         return true;
       }
@@ -103,13 +93,13 @@
   }
 
   function updateBuckets() {
-    const widthSelect = qs('select[class*="doogma-width_dropdown"]');
-    const widthIncSelect = qs('select[class*="doogma-widthinc_dropdown"]');
-    const lengthSelect = qs('select[class*="doogma-length_dropdown"]');
-    const lengthIncSelect = qs('select[class*="doogma-lengthinc_dropdown"]');
+    const widthSelect = document.querySelector("select.doogma-width");
+    const widthIncSelect = document.querySelector("select.doogma-widthinc");
+    const lengthSelect = document.querySelector("select.doogma-length");
+    const lengthIncSelect = document.querySelector("select.doogma-lengthinc");
 
-    const valuesWidthSelect = qs('select[class*="doogma-values_width_dropdown"]');
-    const valuesLengthSelect = qs('select[class*="doogma-values_length_dropdown"]');
+    const valuesWidthSelect = document.querySelector("select.doogma-values_width");
+    const valuesLengthSelect = document.querySelector("select.doogma-values_length");
 
     console.log("bucket selects found", {
       width: !!widthSelect,
@@ -124,16 +114,16 @@
       return;
     }
 
-    const width = parseDimension(getSelectedDisplayText(widthSelect));
-    const widthInc = parseDimension(getSelectedDisplayText(widthIncSelect));
-    const length = parseDimension(getSelectedDisplayText(lengthSelect));
-    const lengthInc = parseDimension(getSelectedDisplayText(lengthIncSelect));
+    const width = parseDimension(getSelectedText(widthSelect));
+    const widthInc = parseDimension(getSelectedText(widthIncSelect));
+    const length = parseDimension(getSelectedText(lengthSelect));
+    const lengthInc = parseDimension(getSelectedText(lengthIncSelect));
 
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
-    const widthBreaks = getBucketBreakpoints(valuesWidthSelect);
-    const lengthBreaks = getBucketBreakpoints(valuesLengthSelect);
+    const widthBreaks = getBreakpoints(valuesWidthSelect);
+    const lengthBreaks = getBreakpoints(valuesLengthSelect);
 
     const widthBucket = getBucket(actualWidth, widthBreaks);
     const lengthBucket = getBucket(actualLength, lengthBreaks);
@@ -142,34 +132,29 @@
     const lengthSet = setSelectByBucket(valuesLengthSelect, lengthBucket);
 
     console.log("bucket results", {
-      widthText: getSelectedDisplayText(widthSelect),
-      widthIncText: getSelectedDisplayText(widthIncSelect),
       width,
       widthInc,
       actualWidth,
       widthBreaks,
       widthBucket,
       widthSet,
-      valuesWidthNow: getSelectedDisplayText(valuesWidthSelect),
-
-      lengthText: getSelectedDisplayText(lengthSelect),
-      lengthIncText: getSelectedDisplayText(lengthIncSelect),
+      valuesWidthNow: getSelectedText(valuesWidthSelect),
       length,
       lengthInc,
       actualLength,
       lengthBreaks,
       lengthBucket,
       lengthSet,
-      valuesLengthNow: getSelectedDisplayText(valuesLengthSelect)
+      valuesLengthNow: getSelectedText(valuesLengthSelect)
     });
   }
 
   function bind() {
     [
-      qs('select[class*="doogma-width_dropdown"]'),
-      qs('select[class*="doogma-widthinc_dropdown"]'),
-      qs('select[class*="doogma-length_dropdown"]'),
-      qs('select[class*="doogma-lengthinc_dropdown"]')
+      document.querySelector("select.doogma-width"),
+      document.querySelector("select.doogma-widthinc"),
+      document.querySelector("select.doogma-length"),
+      document.querySelector("select.doogma-lengthinc")
     ]
       .filter(Boolean)
       .forEach(function (select) {
