@@ -9,21 +9,13 @@
     }
   }
 
-  function normalizeLabel(str) {
-    return (str || "").replace(/\s+/g, " ").trim().toLowerCase();
-  }
-
   function parseFraction(value) {
     if (value == null) return 0;
 
-    let str = String(value).trim();
+    let str = String(value).trim().replace(/"/g, "");
     if (!str) return 0;
 
-    str = str.replace(/"/g, "").trim();
-
-    if (/^\d+(\.\d+)?$/.test(str)) {
-      return parseFloat(str);
-    }
+    if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
 
     if (/^\d+\s+\d+\/\d+$/.test(str)) {
       const parts = str.split(/\s+/);
@@ -44,113 +36,65 @@
     return 0;
   }
 
-  function getSelectedOptionText(select) {
+  function getSelectedText(select) {
     if (!select) return "";
-    const option = select.options[select.selectedIndex];
-    if (!option) return "";
+    const opt = select.options[select.selectedIndex];
+    if (!opt) return "";
     return (
-      option.getAttribute("data-doogma-value") ||
-      option.textContent ||
-      option.value ||
+      opt.getAttribute("data-doogma-value") ||
+      opt.textContent ||
+      opt.value ||
       ""
     ).trim();
   }
 
-  function getSelectBreakpoints(select) {
+  function getBreakpoints(select) {
     if (!select) return [];
+    const vals = Array.from(select.options)
+      .map(function (opt) {
+        return parseFraction(
+          (opt.getAttribute("data-doogma-value") ||
+            opt.textContent ||
+            opt.value ||
+            "").trim()
+        );
+      })
+      .filter(function (n) {
+        return !isNaN(n) && n > 0;
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
 
-    const values = [];
-
-    Array.from(select.options).forEach(function (option) {
-      const raw = (
-        option.getAttribute("data-doogma-value") ||
-        option.textContent ||
-        option.value ||
-        ""
-      ).trim();
-
-      const num = parseFraction(raw);
-
-      if (!isNaN(num) && num > 0) {
-        values.push(num);
-      }
-    });
-
-    return Array.from(new Set(values)).sort(function (a, b) {
-      return a - b;
-    });
+    return Array.from(new Set(vals));
   }
 
   function getBucket(value, breaks) {
-    if (!breaks || !breaks.length) return 0;
-
     for (let i = 0; i < breaks.length; i++) {
       if (value <= breaks[i]) return breaks[i];
     }
-
-    return breaks[breaks.length - 1];
+    return breaks.length ? breaks[breaks.length - 1] : 0;
   }
 
-  function findOptionGroups() {
-    const groups = [];
-    const headings = document.querySelectorAll(
-      "strong[role='heading'], .doogma h1, .doogma h2, .doogma h3, .doogma h4, .doogma h5, .doogma h6"
-    );
-
-    headings.forEach(function (heading) {
-      const label = normalizeLabel(heading.textContent);
-      if (!label) return;
-
-      let container = heading.closest("div");
-      if (!container) return;
-
-      let selects = container.querySelectorAll("select");
-      if (!selects.length && container.parentElement) {
-        selects = container.parentElement.querySelectorAll("select");
-        if (selects.length) container = container.parentElement;
-      }
-
-      if (selects.length) {
-        groups.push({
-          label: label,
-          heading: heading,
-          container: container,
-          selects: Array.from(selects)
-        });
-      }
-    });
-
-    return groups;
+  function findSelect(selector) {
+    return document.querySelector(selector);
   }
 
-  function getGroupByLabel(groups, labelName) {
-    const target = normalizeLabel(labelName);
-    return groups.find(function (g) {
-      return g.label === target;
-    }) || null;
-  }
-
-  function setSelectToBucket(select, bucket) {
+  function setSelectByBucket(select, bucket) {
     if (!select) return false;
-    const bucketStr = String(bucket);
 
     for (let i = 0; i < select.options.length; i++) {
-      const option = select.options[i];
-      const dataVal = (option.getAttribute("data-doogma-value") || "").trim();
-      const textVal = (option.textContent || "").trim();
-      const rawVal = (option.value || "").trim();
+      const opt = select.options[i];
+      const raw = (
+        opt.getAttribute("data-doogma-value") ||
+        opt.textContent ||
+        opt.value ||
+        ""
+      ).trim();
 
-      if (
-        dataVal === bucketStr ||
-        textVal === bucketStr ||
-        rawVal === bucketStr ||
-        parseFraction(dataVal) === bucket ||
-        parseFraction(textVal) === bucket ||
-        parseFraction(rawVal) === bucket
-      ) {
+      if (parseFraction(raw) === bucket || raw === String(bucket)) {
         select.selectedIndex = i;
-        select.value = option.value;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
+        select.value = opt.value;
         return true;
       }
     }
@@ -159,96 +103,81 @@
   }
 
   function updateBuckets() {
-    const groups = findOptionGroups();
+    const widthSelect = findSelect('select[class*="doogma-width_dropdown"]');
+    const widthIncSelect = findSelect('select[class*="doogma-widthinc_dropdown"]');
+    const lengthSelect = findSelect('select[class*="doogma-length_dropdown"]');
+    const lengthIncSelect = findSelect('select[class*="doogma-lengthinc_dropdown"]');
 
-    const widthGroup = getGroupByLabel(groups, "width");
-    const lengthGroup = getGroupByLabel(groups, "length");
-    const valuesGroup = getGroupByLabel(groups, "values");
+    const valuesWidthSelect = findSelect('select[class*="doogma-values_width_dropdown"]');
+    const valuesLengthSelect = findSelect('select[class*="doogma-values_length_dropdown"]');
 
-    if (!widthGroup || !lengthGroup || !valuesGroup) {
-      console.log("Bucket script: missing one or more groups", {
-        widthGroup: !!widthGroup,
-        lengthGroup: !!lengthGroup,
-        valuesGroup: !!valuesGroup
-      });
+    console.log("Bucket script selects found:", {
+      widthSelect: !!widthSelect,
+      widthIncSelect: !!widthIncSelect,
+      lengthSelect: !!lengthSelect,
+      lengthIncSelect: !!lengthIncSelect,
+      valuesWidthSelect: !!valuesWidthSelect,
+      valuesLengthSelect: !!valuesLengthSelect
+    });
+
+    if (!widthSelect || !widthIncSelect || !lengthSelect || !lengthIncSelect || !valuesWidthSelect || !valuesLengthSelect) {
       return;
     }
 
-    const widthSelect = widthGroup.selects[0] || null;
-    const widthIncSelect = widthGroup.selects[1] || null;
-
-    const lengthSelect = lengthGroup.selects[0] || null;
-    const lengthIncSelect = lengthGroup.selects[1] || null;
-
-    const valuesWidthSelect = valuesGroup.selects[0] || null;
-    const valuesLengthSelect = valuesGroup.selects[1] || null;
-
-    const widthBreaks = getSelectBreakpoints(valuesWidthSelect);
-    const lengthBreaks = getSelectBreakpoints(valuesLengthSelect);
-
-    const width = parseFraction(getSelectedOptionText(widthSelect));
-    const widthInc = parseFraction(getSelectedOptionText(widthIncSelect));
-    const length = parseFraction(getSelectedOptionText(lengthSelect));
-    const lengthInc = parseFraction(getSelectedOptionText(lengthIncSelect));
+    const width = parseFraction(getSelectedText(widthSelect));
+    const widthInc = parseFraction(getSelectedText(widthIncSelect));
+    const length = parseFraction(getSelectedText(lengthSelect));
+    const lengthInc = parseFraction(getSelectedText(lengthIncSelect));
 
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
+    const widthBreaks = getBreakpoints(valuesWidthSelect);
+    const lengthBreaks = getBreakpoints(valuesLengthSelect);
+
     const widthBucket = getBucket(actualWidth, widthBreaks);
     const lengthBucket = getBucket(actualLength, lengthBreaks);
 
-    console.log("Bucket script:", {
+    const widthSet = setSelectByBucket(valuesWidthSelect, widthBucket);
+    const lengthSet = setSelectByBucket(valuesLengthSelect, lengthBucket);
+
+    console.log("Bucket script result:", {
       width,
       widthInc,
       actualWidth,
       widthBreaks,
       widthBucket,
+      widthSet,
+      selectedValuesWidth: getSelectedText(valuesWidthSelect),
       length,
       lengthInc,
       actualLength,
       lengthBreaks,
-      lengthBucket
-    });
-
-    const widthSet = setSelectToBucket(valuesWidthSelect, widthBucket);
-    const lengthSet = setSelectToBucket(valuesLengthSelect, lengthBucket);
-
-    console.log("Bucket set results:", {
-      widthSet,
+      lengthBucket,
       lengthSet,
-      valuesWidthSelected: getSelectedOptionText(valuesWidthSelect),
-      valuesLengthSelected: getSelectedOptionText(valuesLengthSelect)
+      selectedValuesLength: getSelectedText(valuesLengthSelect)
     });
   }
 
-  function bindEvents() {
-    const groups = findOptionGroups();
-    const widthGroup = getGroupByLabel(groups, "width");
-    const lengthGroup = getGroupByLabel(groups, "length");
-
-    const watched = [];
-
-    if (widthGroup) watched.push.apply(watched, widthGroup.selects);
-    if (lengthGroup) watched.push.apply(watched, lengthGroup.selects);
+  function bind() {
+    const watched = [
+      document.querySelector('select[class*="doogma-width_dropdown"]'),
+      document.querySelector('select[class*="doogma-widthinc_dropdown"]'),
+      document.querySelector('select[class*="doogma-length_dropdown"]'),
+      document.querySelector('select[class*="doogma-lengthinc_dropdown"]')
+    ].filter(Boolean);
 
     watched.forEach(function (select) {
       select.addEventListener("change", function () {
-        setTimeout(updateBuckets, 0);
-      });
-    });
-
-    const form = document.querySelector("form");
-    if (form) {
-      form.addEventListener("submit", function () {
         updateBuckets();
       });
-    }
+    });
   }
 
   ready(function () {
     setTimeout(function () {
+      bind();
       updateBuckets();
-      bindEvents();
-    }, 300);
+    }, 500);
   });
 })();
