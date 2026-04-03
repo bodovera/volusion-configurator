@@ -1,10 +1,6 @@
 (function () {
   "use strict";
 
-  // =========================================================
-  // HELPERS
-  // =========================================================
-
   function ready(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn);
@@ -19,45 +15,84 @@
     const str = String(value).trim().replace(/"/g, "");
     if (!str) return 0;
 
-    if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+    if (/^\d+(\.\d+)?$/.test(str)) {
+      return parseFloat(str);
+    }
 
     if (/^\d+\s+\d+\/\d+$/.test(str)) {
       const parts = str.split(/\s+/);
       const whole = parseFloat(parts[0]) || 0;
       const frac = parts[1].split("/");
-      return whole + ((parseFloat(frac[0]) || 0) / (parseFloat(frac[1]) || 1));
+      const num = parseFloat(frac[0]) || 0;
+      const den = parseFloat(frac[1]) || 1;
+      return whole + (den ? num / den : 0);
     }
 
     if (/^\d+\/\d+$/.test(str)) {
       const frac = str.split("/");
-      return (parseFloat(frac[0]) || 0) / (parseFloat(frac[1]) || 1);
+      const num = parseFloat(frac[0]) || 0;
+      const den = parseFloat(frac[1]) || 1;
+      return den ? num / den : 0;
     }
 
     return 0;
   }
 
-  function getSelectedText(select) {
+  function getSelectedOptionText(select) {
     if (!select || select.selectedIndex < 0) return "";
-    return (select.options[select.selectedIndex].textContent || "").trim();
+    const opt = select.options[select.selectedIndex];
+    return opt ? (opt.textContent || "").trim() : "";
   }
 
-  function normalize(n) {
+  function getBreakpointsFromPriceSelect(select, index) {
+    if (!select) return [];
+
+    const points = Array.from(select.options)
+      .map(function (opt) {
+        const combo =
+          (opt.getAttribute("data-doogma-value") || "").trim() ||
+          ((opt.textContent || "").trim().split(/\s+/)[0] || "").trim();
+
+        if (!combo || combo.indexOf("x") < 0) return null;
+
+        const parts = combo.toLowerCase().split("x");
+        if (parts.length !== 2) return null;
+
+        const num = parseDimension(parts[index]);
+        return !isNaN(num) && num > 0 ? num : null;
+      })
+      .filter(function (n) {
+        return n != null;
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+
+    return Array.from(new Set(points));
+  }
+
+  function getNextBucket(actualValue, breakpoints) {
+    for (let i = 0; i < breakpoints.length; i++) {
+      if (actualValue <= breakpoints[i]) {
+        return breakpoints[i];
+      }
+    }
+    return breakpoints.length ? breakpoints[breakpoints.length - 1] : 0;
+  }
+
+  function normalizeBucketNumber(n) {
     return Number.isInteger(n) ? String(parseInt(n, 10)) : String(n);
   }
 
-  // =========================================================
-  // FIND SELECTS
-  // =========================================================
-
   function findPriceSelect() {
-    const selects = document.querySelectorAll("select");
+    const selects = Array.from(document.querySelectorAll("select"));
 
     for (let i = 0; i < selects.length; i++) {
-      const name = selects[i].name || "";
+      const sel = selects[i];
+      const className = (sel.className || "").toLowerCase();
 
-      // MATCH: PRICE_*
-      if (name.toUpperCase().includes("PRICE_")) {
-        return selects[i];
+      if (className.indexOf("doogma-price_") >= 0) {
+        return sel;
       }
     }
 
@@ -74,122 +109,122 @@
     };
   }
 
-  // =========================================================
-  // BREAKPOINTS FROM PRICE OPTIONS
-  // =========================================================
-
-  function getBreakpoints(priceSelect, index) {
-    if (!priceSelect) return [];
-
-    const values = Array.from(priceSelect.options)
-      .map(function (opt) {
-        const combo =
-          opt.getAttribute("data-doogma-value") ||
-          (opt.textContent || "").split(" ")[0];
-
-        if (!combo) return null;
-
-        const parts = combo.toLowerCase().split("x");
-        if (parts.length !== 2) return null;
-
-        const val = parseDimension(parts[index]);
-        return isNaN(val) ? null : val;
-      })
-      .filter(Boolean)
-      .sort((a, b) => a - b);
-
-    return [...new Set(values)];
-  }
-
-  function getNextBucket(value, breakpoints) {
-    for (let i = 0; i < breakpoints.length; i++) {
-      if (value <= breakpoints[i]) return breakpoints[i];
-    }
-    return breakpoints.length ? breakpoints[breakpoints.length - 1] : 0;
-  }
-
-  // =========================================================
-  // SET PRICE OPTION
-  // =========================================================
-
-  function setPrice(select, target) {
+  function setSelectByCombo(select, comboText) {
     if (!select) return false;
 
-    const targetLower = target.toLowerCase();
+    const target = String(comboText).trim().toLowerCase();
+    let matchedIndex = -1;
+    let matchedOption = null;
 
     for (let i = 0; i < select.options.length; i++) {
       const opt = select.options[i];
 
-      const val =
-        (opt.getAttribute("data-doogma-value") || "").toLowerCase() ||
-        ((opt.textContent || "").split(" ")[0] || "").toLowerCase();
+      const doogmaValue = (opt.getAttribute("data-doogma-value") || "").trim().toLowerCase();
+      const textToken = ((opt.textContent || "").trim().split(/\s+/)[0] || "").trim().toLowerCase();
 
-      if (val === targetLower) {
-        select.selectedIndex = i;
-        select.value = opt.value;
-
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-        return true;
+      if (doogmaValue === target || textToken === target) {
+        matchedIndex = i;
+        matchedOption = opt;
+        break;
       }
     }
 
-    console.warn("No price bucket match:", target);
-    return false;
+    if (matchedIndex < 0 || !matchedOption) {
+      console.warn("No PRICE match found for combo:", comboText);
+      return false;
+    }
+
+    if (select.selectedIndex === matchedIndex) {
+      return true;
+    }
+
+    select.selectedIndex = matchedIndex;
+    select.value = matchedOption.value;
+
+    Array.from(select.options).forEach(function (opt, idx) {
+      opt.selected = idx === matchedIndex;
+      if (idx === matchedIndex) {
+        opt.setAttribute("selected", "selected");
+      } else {
+        opt.removeAttribute("selected");
+      }
+    });
+
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+
+    return true;
   }
 
-  // =========================================================
-  // MAIN LOGIC
-  // =========================================================
-
-  function updatePrice() {
+  function updatePriceBucket() {
     const s = getSelects();
 
     if (!s.width || !s.widthInc || !s.length || !s.lengthInc || !s.price) {
+      console.warn("Missing select(s)", {
+        width: !!s.width,
+        widthInc: !!s.widthInc,
+        length: !!s.length,
+        lengthInc: !!s.lengthInc,
+        price: !!s.price
+      });
       return;
     }
 
-    const width = parseDimension(getSelectedText(s.width));
-    const widthInc = parseDimension(getSelectedText(s.widthInc));
-    const length = parseDimension(getSelectedText(s.length));
-    const lengthInc = parseDimension(getSelectedText(s.lengthInc));
+    const width = parseDimension(getSelectedOptionText(s.width));
+    const widthInc = parseDimension(getSelectedOptionText(s.widthInc));
+    const length = parseDimension(getSelectedOptionText(s.length));
+    const lengthInc = parseDimension(getSelectedOptionText(s.lengthInc));
 
     const actualWidth = width + widthInc;
     const actualLength = length + lengthInc;
 
-    const widthBreaks = getBreakpoints(s.price, 0);
-    const lengthBreaks = getBreakpoints(s.price, 1);
+    const widthBreakpoints = getBreakpointsFromPriceSelect(s.price, 0);
+    const lengthBreakpoints = getBreakpointsFromPriceSelect(s.price, 1);
 
-    const widthBucket = getNextBucket(actualWidth, widthBreaks);
-    const lengthBucket = getNextBucket(actualLength, lengthBreaks);
+    const widthBucket = getNextBucket(actualWidth, widthBreakpoints);
+    const lengthBucket = getNextBucket(actualLength, lengthBreakpoints);
 
-    const combo = normalize(widthBucket) + "x" + normalize(lengthBucket);
+    const targetCombo =
+      normalizeBucketNumber(widthBucket) + "x" + normalizeBucketNumber(lengthBucket);
 
-    setPrice(s.price, combo);
+    const matched = setSelectByCombo(s.price, targetCombo);
 
-    console.log("PRICE SELECTED:", combo);
+    console.log("Price bucket update", {
+      width: width,
+      widthInc: widthInc,
+      actualWidth: actualWidth,
+      length: length,
+      lengthInc: lengthInc,
+      actualLength: actualLength,
+      widthBucket: widthBucket,
+      lengthBucket: lengthBucket,
+      targetCombo: targetCombo,
+      matched: matched,
+      currentPriceText: getSelectedOptionText(s.price)
+    });
   }
 
-  function bind() {
+  function bindEvents() {
     document.addEventListener("change", function (e) {
-      if (!e.target || e.target.tagName !== "SELECT") return;
+      const t = e.target;
+      if (!t || t.tagName !== "SELECT") return;
 
       if (
-        e.target.classList.contains("doogma-width") ||
-        e.target.classList.contains("doogma-widthinc") ||
-        e.target.classList.contains("doogma-length") ||
-        e.target.classList.contains("doogma-lengthinc")
+        t.classList.contains("doogma-width") ||
+        t.classList.contains("doogma-widthinc") ||
+        t.classList.contains("doogma-length") ||
+        t.classList.contains("doogma-lengthinc")
       ) {
-        setTimeout(updatePrice, 50);
+        setTimeout(updatePriceBucket, 50);
       }
     });
   }
 
   function init() {
-    bind();
-
-    setTimeout(updatePrice, 500);
-    setTimeout(updatePrice, 1000);
-    setTimeout(updatePrice, 1500);
+    bindEvents();
+    setTimeout(updatePriceBucket, 500);
+    setTimeout(updatePriceBucket, 1000);
+    setTimeout(updatePriceBucket, 1500);
   }
 
   ready(init);
