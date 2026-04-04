@@ -36,7 +36,7 @@
     const i = normalizeText(inc);
 
     if (!b) return "";
-    if (!i || isZeroInc(i)) return b;
+    if (!i || isZeroInc(i) || upperText(i) === "N/A") return b;
 
     return b + " " + i;
   }
@@ -57,7 +57,7 @@
     );
   }
 
-  function processLines(lines) {
+  function cleanOptionLines(lines) {
     let width = "";
     let widthInc = "";
     let length = "";
@@ -67,7 +67,6 @@
     lines.forEach(function (line) {
       const parsed = parseLabelValue(line);
       if (!parsed) {
-        if (normalizeText(line)) kept.push(normalizeText(line));
         return;
       }
 
@@ -101,97 +100,87 @@
       kept.push(parsed.label + ": " + parsed.value);
     });
 
-    if (width) {
-      kept.unshift("Width: " + combineDimension(width, widthInc));
-    }
+    const finalLines = [];
 
-    if (length) {
-      const insertAt = width ? 1 : 0;
-      kept.splice(insertAt, 0, "Length: " + combineDimension(length, lengthInc));
-    }
+    if (width) finalLines.push("Width: " + combineDimension(width, widthInc));
+    if (length) finalLines.push("Length: " + combineDimension(length, lengthInc));
 
-    return kept;
+    kept.forEach(function (line) {
+      finalLines.push(line);
+    });
+
+    return finalLines;
   }
 
-  function processOptionList(ul) {
-    if (!ul || ul.dataset.cartOptionsCleaned === "1") return;
+  function cleanModalLists() {
+    document.querySelectorAll('div[data-modal-body] ul').forEach(function (ul) {
+      const items = Array.from(ul.querySelectorAll("li"));
+      if (!items.length) return;
 
-    const items = Array.from(ul.querySelectorAll("li"));
-    if (!items.length) return;
+      const rawLines = items
+        .map(function (li) {
+          return normalizeText(li.textContent || "");
+        })
+        .filter(Boolean);
 
-    const lines = items.map(function (li) {
-      return normalizeText(li.textContent || "");
+      const cleaned = cleanOptionLines(rawLines);
+      if (!cleaned.length) return;
+
+      ul.innerHTML = "";
+
+      cleaned.forEach(function (line) {
+        const li = document.createElement("li");
+        li.className = "small_bul19";
+
+        const div = document.createElement("div");
+        div.textContent = line;
+
+        li.appendChild(div);
+        ul.appendChild(li);
+      });
+
+      log("Cleaned modal options list");
     });
-
-    const cleaned = processLines(lines);
-    if (!cleaned || !cleaned.length) return;
-
-    const lineDivs = items.map(function (li) {
-      return li.querySelector("div") || li;
-    });
-
-    cleaned.forEach(function (line, i) {
-      if (lineDivs[i]) {
-        lineDivs[i].textContent = line;
-        items[i].style.display = "";
-        items[i].removeAttribute("aria-hidden");
-      }
-    });
-
-    for (let i = cleaned.length; i < items.length; i++) {
-      items[i].style.display = "none";
-      items[i].setAttribute("aria-hidden", "true");
-    }
-
-    ul.dataset.cartOptionsCleaned = "1";
-    log("Cleaned modal/cart option list", ul);
   }
 
-  function looksLikeOptionsText(text) {
+  function splitInlineOptionsText(text) {
+    return String(text || "")
+      .split(/,\s*(?=[A-Za-z][A-Za-z0-9 _\/-]*:)/)
+      .map(function (part) {
+        return normalizeText(part);
+      })
+      .filter(Boolean);
+  }
+
+  function looksLikeOptionsBlob(text) {
     const t = upperText(text);
     return (
-      t.includes("WIDTH:") ||
-      t.includes("LENGTH:") ||
-      t.includes("WIDTHINC:") ||
-      t.includes("LENGTHINC:") ||
-      t.includes("CONTROL SIDE:") ||
-      t.includes("CONTROL TYPE:") ||
-      t.includes("MOUNT:") ||
-      t.includes("STYLE:") ||
-      t.includes("MOTOR TYPE:") ||
-      t.includes("PRICE_")
+      t.includes("WIDTH:") &&
+      t.includes("LENGTH:")
     );
   }
 
-  function processInlineOptionsBlock(el) {
-    if (!el || el.dataset.cartOptionsInlineCleaned === "1") return;
+  function cleanInlineOptionBlocks() {
+    document.querySelectorAll("div, p, span").forEach(function (el) {
+      const raw = normalizeText(el.textContent || "");
+      if (!raw) return;
+      if (!looksLikeOptionsBlob(raw)) return;
+      if (el.children.length > 0) return;
 
-    const raw = normalizeText(el.textContent || "");
-    if (!raw || !looksLikeOptionsText(raw)) return;
+      const lines = splitInlineOptionsText(raw);
+      if (!lines.length) return;
 
-    const lines = raw
-      .split(/,\s*(?=[A-Za-z][A-Za-z0-9 _\/-]*:)/)
-      .map(function (s) {
-        return normalizeText(s);
-      })
-      .filter(Boolean);
+      const cleaned = cleanOptionLines(lines);
+      if (!cleaned.length) return;
 
-    if (!lines.length) return;
-
-    const cleaned = processLines(lines);
-    if (!cleaned || !cleaned.length) return;
-
-    el.textContent = cleaned.join(", ");
-    el.dataset.cartOptionsInlineCleaned = "1";
-    log("Cleaned inline cart options block", el);
+      el.textContent = cleaned.join(", ");
+      log("Cleaned inline options block", el);
+    });
   }
 
   function run() {
-    document.querySelectorAll('div[data-modal-body] ul').forEach(processOptionList);
-
-    document.querySelectorAll(".cartitem-content, [data-testid='cartitem-content'], .text-sm").forEach(function (el) {
-      processInlineOptionsBlock(el);
-    });
+    cleanModalLists();
+    cleanInlineOptionBlocks();
   }
 
   function init() {
