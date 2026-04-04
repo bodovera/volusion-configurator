@@ -66,24 +66,9 @@
       .filter(Boolean);
   }
 
-  function processCheckoutTextBlock(el) {
-    if (!el || el.dataset.checkoutCleaned === "1") return;
-    if (el.children.length > 0) return;
-
-    const raw = normalizeText(el.textContent || "");
-    if (!raw) return;
-
-    if (!raw.includes("Width:") || !raw.includes("Length:")) return;
-    if (
-      !raw.includes("WidthInc:") &&
-      !raw.includes("LengthInc:") &&
-      !raw.includes("PRICE_") &&
-      !raw.includes("VALUES_WIDTH") &&
-      !raw.includes("VALUES_LENGTH")
-    ) return;
-
+  function cleanText(raw) {
     const parts = splitOptionText(raw);
-    if (!parts.length) return;
+    if (!parts.length) return "";
 
     let width = "";
     let widthInc = "";
@@ -134,17 +119,37 @@
       out.push(line);
     });
 
-    if (!out.length) return;
+    return out.join(", ");
+  }
 
-    el.textContent = out.join(", ");
-    el.dataset.checkoutCleaned = "1";
+  function processCheckoutTextBlock(el) {
+    if (!el) return;
+
+    const raw = normalizeText(el.textContent || "");
+    if (!raw) return;
+    if (!raw.includes("Width:") || !raw.includes("Length:")) return;
+    if (
+      !raw.includes("WidthInc:") &&
+      !raw.includes("LengthInc:") &&
+      !raw.includes("PRICE_") &&
+      !raw.includes("VALUES_WIDTH") &&
+      !raw.includes("VALUES_LENGTH")
+    ) return;
+
+    const cleaned = cleanText(raw);
+    if (!cleaned) return;
+    if (cleaned === raw) return;
+
+    el.textContent = cleaned;
     log("Cleaned checkout block", el);
   }
 
   function run() {
-    document.querySelectorAll("div.text-sm").forEach(function (el) {
-      processCheckoutTextBlock(el);
-    });
+    document
+      .querySelectorAll('[data-testid="cartitem-content"] .text-sm, .summary-panel .text-sm, .container.summary-panel .text-sm')
+      .forEach(function (el) {
+        processCheckoutTextBlock(el);
+      });
   }
 
   function init() {
