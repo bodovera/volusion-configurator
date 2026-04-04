@@ -28,7 +28,7 @@
 
   function isZeroInc(val) {
     const v = normalizeText(val);
-    return v === "0" || v === "0.0" || v === "0.00" || v.toUpperCase() === "N/A";
+    return v === "0" || v === "0.0" || v === "0.00";
   }
 
   function combineDimension(base, inc) {
@@ -140,98 +140,8 @@
     ul.dataset.cartOptionsCleaned = "1";
   }
 
-  function processCheckoutBlock(el) {
-    if (!el || el.dataset.checkoutOptionsCleaned === "1") return;
-    if (el.children.length > 0) return;
-
-    const raw = normalizeText(el.textContent || "");
-    if (!raw) return;
-
-    if (!raw.includes("Width:") || !raw.includes("Length:")) return;
-    if (
-      !raw.includes("WidthInc:") &&
-      !raw.includes("LengthInc:") &&
-      !raw.includes("PRICE_") &&
-      !raw.includes("VALUES_WIDTH") &&
-      !raw.includes("VALUES_LENGTH")
-    ) return;
-
-    const parts = raw
-      .split(/,\s*(?=[A-Za-z][A-Za-z0-9 _\/-]*:)/)
-      .map(function (s) {
-        return normalizeText(s);
-      })
-      .filter(Boolean);
-
-    if (!parts.length) return;
-
-    let widthVal = "";
-    let widthIncVal = "";
-    let lengthVal = "";
-    let lengthIncVal = "";
-    const kept = [];
-
-    parts.forEach(function (part) {
-      const parsed = parseLabelValue(part);
-      if (!parsed) return;
-
-      const labelU = upperText(parsed.label);
-
-      if (labelU === "WIDTH") {
-        widthVal = parsed.value;
-        return;
-      }
-
-      if (labelU === "WIDTHINC") {
-        widthIncVal = parsed.value;
-        return;
-      }
-
-      if (labelU === "LENGTH") {
-        lengthVal = parsed.value;
-        return;
-      }
-
-      if (labelU === "LENGTHINC") {
-        lengthIncVal = parsed.value;
-        return;
-      }
-
-      if (shouldHideLabel(parsed.label)) {
-        log("Hid checkout option text:", part);
-        return;
-      }
-
-      kept.push(parsed.label + ": " + parsed.value);
-    });
-
-    const out = [];
-
-    if (widthVal) {
-      out.push("Width: " + combineDimension(widthVal, widthIncVal));
-    }
-
-    if (lengthVal) {
-      out.push("Length: " + combineDimension(lengthVal, lengthIncVal));
-    }
-
-    kept.forEach(function (line) {
-      out.push(line);
-    });
-
-    if (!out.length) return;
-
-    el.textContent = out.join(", ");
-    el.dataset.checkoutOptionsCleaned = "1";
-    log("Cleaned checkout block:", el);
-  }
-
   function run() {
     document.querySelectorAll('div[data-modal-body] ul').forEach(processOptionList);
-
-    document.querySelectorAll("div, p, span").forEach(function (el) {
-      processCheckoutBlock(el);
-    });
   }
 
   function init() {
