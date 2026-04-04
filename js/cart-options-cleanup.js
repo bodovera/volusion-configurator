@@ -27,8 +27,8 @@
   }
 
   function isZeroInc(val) {
-    const v = upperText(val);
-    return v === "0" || v === "0.0" || v === "0.00" || v === "N/A" || v === "";
+    const v = normalizeText(val);
+    return v === "0" || v === "0.0" || v === "0.00" || v.toUpperCase() === "N/A";
   }
 
   function combineDimension(base, inc) {
@@ -36,7 +36,7 @@
     const i = normalizeText(inc);
 
     if (!b) return "";
-    if (isZeroInc(i)) return b;
+    if (!i || isZeroInc(i)) return b;
 
     return b + " " + i;
   }
@@ -58,9 +58,9 @@
   }
 
   function processOptionList(ul) {
-    if (!ul) return;
+    if (!ul || ul.dataset.cartOptionsCleaned === "1") return;
 
-    const items = Array.from(ul.querySelectorAll(":scope > li"));
+    const items = Array.from(ul.querySelectorAll("li"));
     if (!items.length) return;
 
     let widthLi = null;
@@ -85,8 +85,6 @@
       if (labelU === "WIDTH") {
         widthLi = li;
         widthVal = parsed.value;
-        li.style.display = "";
-        li.removeAttribute("aria-hidden");
         return;
       }
 
@@ -99,8 +97,6 @@
       if (labelU === "LENGTH") {
         lengthLi = li;
         lengthVal = parsed.value;
-        li.style.display = "";
-        li.removeAttribute("aria-hidden");
         return;
       }
 
@@ -114,15 +110,14 @@
         li.style.display = "none";
         li.setAttribute("aria-hidden", "true");
         log("Hid cart option row:", text);
-      } else {
-        li.style.display = "";
-        li.removeAttribute("aria-hidden");
       }
     });
 
     if (widthLi) {
+      const newWidth = combineDimension(widthVal, widthIncVal);
       const div = widthLi.querySelector("div") || widthLi;
-      div.textContent = "Width: " + combineDimension(widthVal, widthIncVal);
+      div.textContent = "Width: " + newWidth;
+      log("Combined width:", newWidth);
     }
 
     if (widthIncLi) {
@@ -131,96 +126,112 @@
     }
 
     if (lengthLi) {
+      const newLength = combineDimension(lengthVal, lengthIncVal);
       const div = lengthLi.querySelector("div") || lengthLi;
-      div.textContent = "Length: " + combineDimension(lengthVal, lengthIncVal);
+      div.textContent = "Length: " + newLength;
+      log("Combined length:", newLength);
     }
 
     if (lengthIncLi) {
       lengthIncLi.style.display = "none";
       lengthIncLi.setAttribute("aria-hidden", "true");
     }
+
+    ul.dataset.cartOptionsCleaned = "1";
   }
 
-  function cleanCheckoutSummary() {
-    document.querySelectorAll("div").forEach(function (el) {
-      if (!el || el.dataset.checkoutCleaned === "1") return;
-      if (el.children.length > 0) return;
+  function processCheckoutBlock(el) {
+    if (!el || el.dataset.checkoutOptionsCleaned === "1") return;
+    if (el.children.length > 0) return;
 
-      const raw = normalizeText(el.textContent || "");
-      if (!raw) return;
-      if (!raw.includes("Width:") || !raw.includes("Length:")) return;
-      if (
-        !raw.includes("WidthInc:") &&
-        !raw.includes("LengthInc:") &&
-        !raw.includes("PRICE_") &&
-        !raw.includes("VALUES_WIDTH") &&
-        !raw.includes("VALUES_LENGTH")
-      ) return;
+    const raw = normalizeText(el.textContent || "");
+    if (!raw) return;
 
-      const parts = raw
-        .split(/,\s*(?=[A-Za-z][A-Za-z0-9 _\/-]*:)/)
-        .map(function (s) {
-          return normalizeText(s);
-        })
-        .filter(Boolean);
+    if (!raw.includes("Width:") || !raw.includes("Length:")) return;
+    if (
+      !raw.includes("WidthInc:") &&
+      !raw.includes("LengthInc:") &&
+      !raw.includes("PRICE_") &&
+      !raw.includes("VALUES_WIDTH") &&
+      !raw.includes("VALUES_LENGTH")
+    ) return;
 
-      if (!parts.length) return;
+    const parts = raw
+      .split(/,\s*(?=[A-Za-z][A-Za-z0-9 _\/-]*:)/)
+      .map(function (s) {
+        return normalizeText(s);
+      })
+      .filter(Boolean);
 
-      let width = "";
-      let widthInc = "";
-      let length = "";
-      let lengthInc = "";
-      const kept = [];
+    if (!parts.length) return;
 
-      parts.forEach(function (part) {
-        const parsed = parseLabelValue(part);
-        if (!parsed) return;
+    let widthVal = "";
+    let widthIncVal = "";
+    let lengthVal = "";
+    let lengthIncVal = "";
+    const kept = [];
 
-        const labelU = upperText(parsed.label);
+    parts.forEach(function (part) {
+      const parsed = parseLabelValue(part);
+      if (!parsed) return;
 
-        if (labelU === "WIDTH") {
-          width = parsed.value;
-          return;
-        }
+      const labelU = upperText(parsed.label);
 
-        if (labelU === "WIDTHINC") {
-          widthInc = parsed.value;
-          return;
-        }
+      if (labelU === "WIDTH") {
+        widthVal = parsed.value;
+        return;
+      }
 
-        if (labelU === "LENGTH") {
-          length = parsed.value;
-          return;
-        }
+      if (labelU === "WIDTHINC") {
+        widthIncVal = parsed.value;
+        return;
+      }
 
-        if (labelU === "LENGTHINC") {
-          lengthInc = parsed.value;
-          return;
-        }
+      if (labelU === "LENGTH") {
+        lengthVal = parsed.value;
+        return;
+      }
 
-        if (shouldHideLabel(parsed.label)) {
-          return;
-        }
+      if (labelU === "LENGTHINC") {
+        lengthIncVal = parsed.value;
+        return;
+      }
 
-        kept.push(parsed.label + ": " + parsed.value);
-      });
+      if (shouldHideLabel(parsed.label)) {
+        log("Hid checkout option text:", part);
+        return;
+      }
 
-      const out = [];
-      if (width) out.push("Width: " + combineDimension(width, widthInc));
-      if (length) out.push("Length: " + combineDimension(length, lengthInc));
-      kept.forEach(function (line) {
-        out.push(line);
-      });
-
-      el.textContent = out.join(", ");
-      el.dataset.checkoutCleaned = "1";
-      log("Cleaned checkout summary block");
+      kept.push(parsed.label + ": " + parsed.value);
     });
+
+    const out = [];
+
+    if (widthVal) {
+      out.push("Width: " + combineDimension(widthVal, widthIncVal));
+    }
+
+    if (lengthVal) {
+      out.push("Length: " + combineDimension(lengthVal, lengthIncVal));
+    }
+
+    kept.forEach(function (line) {
+      out.push(line);
+    });
+
+    if (!out.length) return;
+
+    el.textContent = out.join(", ");
+    el.dataset.checkoutOptionsCleaned = "1";
+    log("Cleaned checkout block:", el);
   }
 
   function run() {
     document.querySelectorAll('div[data-modal-body] ul').forEach(processOptionList);
-    cleanCheckoutSummary();
+
+    document.querySelectorAll("div, p, span").forEach(function (el) {
+      processCheckoutBlock(el);
+    });
   }
 
   function init() {
