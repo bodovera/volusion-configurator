@@ -27,8 +27,8 @@
   }
 
   function isZeroInc(val) {
-    const v = normalizeText(val);
-    return v === "0" || v === "0.0" || v === "0.00" || v.toUpperCase() === "N/A";
+    const v = upperText(val);
+    return v === "0" || v === "0.0" || v === "0.00" || v === "N/A" || v === "";
   }
 
   function combineDimension(base, inc) {
@@ -36,7 +36,7 @@
     const i = normalizeText(inc);
 
     if (!b) return "";
-    if (!i || isZeroInc(i)) return b;
+    if (isZeroInc(i)) return b;
 
     return b + " " + i;
   }
@@ -57,66 +57,10 @@
     );
   }
 
-  function processLines(lines) {
-    let width = "";
-    let widthInc = "";
-    let length = "";
-    let lengthInc = "";
-    const kept = [];
-
-    lines.forEach(function (line) {
-      const parsed = parseLabelValue(line);
-      if (!parsed) {
-        if (normalizeText(line)) kept.push(normalizeText(line));
-        return;
-      }
-
-      const labelU = upperText(parsed.label);
-
-      if (labelU === "WIDTH") {
-        width = parsed.value;
-        return;
-      }
-
-      if (labelU === "WIDTHINC") {
-        widthInc = parsed.value;
-        return;
-      }
-
-      if (labelU === "LENGTH") {
-        length = parsed.value;
-        return;
-      }
-
-      if (labelU === "LENGTHINC") {
-        lengthInc = parsed.value;
-        return;
-      }
-
-      if (shouldHideLabel(parsed.label)) {
-        log("Hid line:", line);
-        return;
-      }
-
-      kept.push(parsed.label + ": " + parsed.value);
-    });
-
-    if (width) {
-      kept.unshift("Width: " + combineDimension(width, widthInc));
-    }
-
-    if (length) {
-      const insertAt = width ? 1 : 0;
-      kept.splice(insertAt, 0, "Length: " + combineDimension(length, lengthInc));
-    }
-
-    return kept;
-  }
-
   function processOptionList(ul) {
-    if (!ul || ul.dataset.cartOptionsCleaned === "1") return;
+    if (!ul) return;
 
-    const items = Array.from(ul.querySelectorAll("li"));
+    const items = Array.from(ul.querySelectorAll(":scope > li"));
     if (!items.length) return;
 
     let widthLi = null;
@@ -141,6 +85,8 @@
       if (labelU === "WIDTH") {
         widthLi = li;
         widthVal = parsed.value;
+        li.style.display = "";
+        li.removeAttribute("aria-hidden");
         return;
       }
 
@@ -153,6 +99,8 @@
       if (labelU === "LENGTH") {
         lengthLi = li;
         lengthVal = parsed.value;
+        li.style.display = "";
+        li.removeAttribute("aria-hidden");
         return;
       }
 
@@ -166,14 +114,15 @@
         li.style.display = "none";
         li.setAttribute("aria-hidden", "true");
         log("Hid cart option row:", text);
+      } else {
+        li.style.display = "";
+        li.removeAttribute("aria-hidden");
       }
     });
 
     if (widthLi) {
-      const newWidth = combineDimension(widthVal, widthIncVal);
       const div = widthLi.querySelector("div") || widthLi;
-      div.textContent = "Width: " + newWidth;
-      log("Combined width:", newWidth);
+      div.textContent = "Width: " + combineDimension(widthVal, widthIncVal);
     }
 
     if (widthIncLi) {
@@ -182,18 +131,14 @@
     }
 
     if (lengthLi) {
-      const newLength = combineDimension(lengthVal, lengthIncVal);
       const div = lengthLi.querySelector("div") || lengthLi;
-      div.textContent = "Length: " + newLength;
-      log("Combined length:", newLength);
+      div.textContent = "Length: " + combineDimension(lengthVal, lengthIncVal);
     }
 
     if (lengthIncLi) {
       lengthIncLi.style.display = "none";
       lengthIncLi.setAttribute("aria-hidden", "true");
     }
-
-    ul.dataset.cartOptionsCleaned = "1";
   }
 
   function cleanCheckoutSummary() {
@@ -203,7 +148,6 @@
 
       const raw = normalizeText(el.textContent || "");
       if (!raw) return;
-
       if (!raw.includes("Width:") || !raw.includes("Length:")) return;
       if (
         !raw.includes("WidthInc:") &&
@@ -222,12 +166,55 @@
 
       if (!parts.length) return;
 
-      const cleaned = processLines(parts);
-      if (!cleaned || !cleaned.length) return;
+      let width = "";
+      let widthInc = "";
+      let length = "";
+      let lengthInc = "";
+      const kept = [];
 
-      el.textContent = cleaned.join(", ");
+      parts.forEach(function (part) {
+        const parsed = parseLabelValue(part);
+        if (!parsed) return;
+
+        const labelU = upperText(parsed.label);
+
+        if (labelU === "WIDTH") {
+          width = parsed.value;
+          return;
+        }
+
+        if (labelU === "WIDTHINC") {
+          widthInc = parsed.value;
+          return;
+        }
+
+        if (labelU === "LENGTH") {
+          length = parsed.value;
+          return;
+        }
+
+        if (labelU === "LENGTHINC") {
+          lengthInc = parsed.value;
+          return;
+        }
+
+        if (shouldHideLabel(parsed.label)) {
+          return;
+        }
+
+        kept.push(parsed.label + ": " + parsed.value);
+      });
+
+      const out = [];
+      if (width) out.push("Width: " + combineDimension(width, widthInc));
+      if (length) out.push("Length: " + combineDimension(length, lengthInc));
+      kept.forEach(function (line) {
+        out.push(line);
+      });
+
+      el.textContent = out.join(", ");
       el.dataset.checkoutCleaned = "1";
-      log("Cleaned checkout summary block:", el);
+      log("Cleaned checkout summary block");
     });
   }
 
