@@ -4,101 +4,36 @@
   var path = (window.location.pathname || "").replace(/\/+$/, "");
   if (path !== "/checkout") return;
 
-  function parseFields(text) {
-    return String(text || "")
-      .split(",")
-      .map(function (part) {
-        part = part.trim();
-        var idx = part.indexOf(":");
-        if (idx === -1) return { key: "", value: part };
-        return {
-          key: part.slice(0, idx).trim(),
-          value: part.slice(idx + 1).trim()
-        };
-      })
-      .filter(function (x) {
-        return x.value;
-      });
-  }
+  console.log("[CHECKOUT TEST] running");
 
-  function num(v) {
-    var n = parseFloat(String(v || "").trim());
-    return isNaN(n) ? 0 : n;
-  }
-
-  function fmt(n) {
-    return String(Math.round(n * 1000) / 1000)
-      .replace(/\.0+$/, "")
-      .replace(/(\.\d*[1-9])0+$/, "$1");
-  }
-
-  function clean(raw) {
-    var fields = parseFields(raw);
-    var map = {};
-
-    fields.forEach(function (f) {
-      if (f.key) map[f.key] = f.value;
-    });
-
-    var width = num(map.Width);
-    var widthInc = num(map.WidthInc);
-    var length = num(map.Length);
-    var lengthInc = num(map.LengthInc);
-
-    var out = [];
-
-    if ("Width" in map) out.push("Width: " + fmt(width + widthInc));
-    if ("Length" in map) out.push("Length: " + fmt(length + lengthInc));
-
-    fields.forEach(function (f) {
-      var k = f.key;
-      var v = f.value;
-
-      if (!k) return;
-      if (/^PRICE_/i.test(k)) return;
-      if (k === "Width" || k === "WidthInc" || k === "Length" || k === "LengthInc") return;
-      if (k === "Control Length" && /^N\/A$/i.test(v)) return;
-      if (k === "Motor Control" && /^Please Select/i.test(v)) return;
-      if (k === "Motor Type" && /^Please Select/i.test(v)) return;
-
-      out.push(k + ": " + v);
-    });
-
-    return out.join(" • ");
-  }
-
-  function process() {
+  function highlight() {
     var nodes = document.querySelectorAll(
       '[data-testid="cartitemsummary-summary"] [data-testid="cartitem-content"] div.text-sm'
     );
 
-    nodes.forEach(function (el) {
-      var raw = (el.getAttribute("data-bdv-raw") || el.textContent || "").trim();
+    console.log("[CHECKOUT TEST] nodes found:", nodes.length);
 
-      if (!raw.includes("PRICE_")) return;
-      if (!raw.includes("Width:")) return;
-      if (!raw.includes("Length:")) return;
+    nodes.forEach(function (el, i) {
+      var txt = (el.textContent || "").trim();
 
-      if (!el.getAttribute("data-bdv-raw")) {
-        el.setAttribute("data-bdv-raw", raw);
-      }
+      if (!txt.includes("PRICE_")) return;
 
-      var cleaned = clean(raw);
+      console.log("[CHECKOUT TEST] HIT:", txt);
 
-      if (el.textContent !== cleaned) {
-        el.textContent = cleaned;
-      }
+      el.style.background = "yellow";
+      el.style.color = "black";
+      el.style.border = "2px solid red";
+      el.style.padding = "4px";
     });
   }
 
+  // run repeatedly in case checkout renders late
   var count = 0;
-  var maxRuns = 120;
-
   var timer = setInterval(function () {
-    process();
-    count += 1;
-    if (count >= maxRuns) clearInterval(timer);
+    highlight();
+    count++;
+    if (count > 40) clearInterval(timer);
   }, 500);
 
-  process();
+  highlight();
 })();
