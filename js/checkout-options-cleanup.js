@@ -1,128 +1,67 @@
 (function () {
   "use strict";
 
-  const DEBUG = true;
+  // checkout only
+  var path = (window.location.pathname || "").replace(/\/+$/, "");
+  if (path !== "/checkout") return;
 
-  function log() {
-    if (DEBUG) console.log("[CheckoutSummaryCleanUp]", ...arguments);
+  function getVal(label, text) {
+    var regex = new RegExp(label + "\\s*:\\s*([^,]+)", "i");
+    var match = text.match(regex);
+    return match ? parseFloat(match[1]) : 0;
   }
 
-  function normalizeText(str) {
-    return String(str || "").replace(/\s+/g, " ").trim();
+  function replaceVal(label, value, text) {
+    var regex = new RegExp(label + "\\s*:\\s*([^,]+)", "i");
+    return text.replace(regex, label + ": " + value);
   }
 
-  function isCheckoutPage() {
-    const txt = (document.body?.innerText || "").toLowerCase();
-    return (
-      txt.includes("shipping address") &&
-      txt.includes("promo code") &&
-      txt.includes("calculated at payment")
-    );
+  function cleanText(str) {
+    if (!str) return "";
+
+    let width = getVal("Width", str);
+    let widthInc = getVal("WidthInc", str);
+    let length = getVal("Length", str);
+    let lengthInc = getVal("LengthInc", str);
+
+    let finalWidth = width + widthInc;
+    let finalLength = length + lengthInc;
+
+    let t = str;
+
+    // apply math
+    if (width) t = replaceVal("Width", finalWidth, t);
+    if (length) t = replaceVal("Length", finalLength, t);
+
+    return t
+      .replace(/^PRICE_[^,]*,\s*/i, "")
+      .replace(/WidthInc:[^,]*,?\s*/gi, "")
+      .replace(/LengthInc:[^,]*,?\s*/gi, "")
+      .replace(/Control Length:N\/A,?\s*/gi, "")
+      .replace(/\bN\/A\b/gi, "—")
+      .replace(/\s*,\s*/g, " • ")
+      .replace(/\s*:\s*/g, ": ")
+      .trim();
   }
 
-  function findSummaryContainer() {
-    return (
-      document.querySelector('[data-testid="cartitemsummary-summary"]') ||
-      document.querySelector('[data-testid="cartitem-summary"]') ||
-      document.querySelector('[data-testid="cartitem-content"]')?.closest("div")
-    );
-  }
+  function run() {
+    var nodes = document.querySelectorAll(".text-sm");
 
-  function injectStyles() {
-    if (document.getElementById("bdv-checkout-summary-cleanup-styles")) return;
+    nodes.forEach(function (el) {
+      if (el.dataset.cleaned === "1") return;
 
-    const style = document.createElement("style");
-    style.id = "bdv-checkout-summary-cleanup-styles";
-    style.textContent = `
-      .bdv-clean-config {
-        display: block !important;
-        margin-top: 4px !important;
-        font-size: 11px !important;
-        line-height: 1.35 !important;
-        color: #666 !important;
-        white-space: normal !important;
-        word-break: break-word !important;
-        overflow-wrap: anywhere !important;
-        max-width: 100% !important;
-      }
+      var txt = (el.textContent || "").trim();
 
-      .bdv-clean-config-main {
-        display: block;
-      }
+      if (!txt.includes("Width:") || !txt.includes("Length:")) return;
 
-      .bdv-clean-config-extra {
-        display: none;
-        margin-top: 3px;
-      }
-
-      .bdv-clean-config.bdv-open .bdv-clean-config-extra {
-        display: block;
-      }
-
-      .bdv-clean-config-toggle {
-        display: inline-block;
-        margin-top: 3px;
-        font-size: 10px;
-        color: #888 !important;
-        cursor: pointer;
-        user-select: none;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function looksLikeConfigText(text) {
-    const t = normalizeText(text).toUpperCase();
-    return (
-      t.includes("WIDTH:") ||
-      t.includes("LENGTH:") ||
-      t.includes("STYLE:") ||
-      t.includes("MOUNT:") ||
-      t.includes("CONTROL TYPE:") ||
-      t.includes("CONTROL SIDE:") ||
-      t.includes("MOTOR TYPE:") ||
-      t.includes("ACCESSORIES:")
-    );
-  }
-
-  function cleanText(text) {
-    let t = normalizeText(text);
-
-    t = t.replace(/^PRICE_[^,]*,\s*/i, "");
-    t = t.replace(/\bWIDTHINC:[^,]*,?\s*/gi, "");
-    t = t.replace(/\bLENGTHINC:[^,]*,?\s*/gi, "");
-    t = t.replace(/\bCONTROL LENGTH:N\/A,?\s*/gi, "");
-    t = t.replace(/\bMOTOR CONTROL:1 CHANNEL REMOTE,?\s*/gi, "");
-    t = t.replace(/\bN\/A\b/gi, "—");
-    t = t.replace(/\s*,\s*/g, ", ");
-    t = t.replace(/\s*:\s*/g, ": ");
-
-    return t;
-  }
-
-  function splitText(text) {
-    const parts = cleanText(text)
-      .split(",")
-      .map(s => normalizeText(s))
-      .filter(Boolean);
-
-    const main = [];
-    const extra = [];
-
-    parts.forEach(part => {
-      const u = part.toUpperCase();
-
-      if (
-        u.startsWith("WIDTH:") ||
-        u.startsWith("LENGTH:") ||
-        u.startsWith("MOUNT:") ||
-        u.startsWith("STYLE:")
-      ) {
-        main.push(part);
-      } else {
-        extra.push(part);
-      }
+      el.textContent = cleanText(txt);
+      el.dataset.cleaned = "1";
     });
+  }
 
-    return {
-      main: main.join(" • "),
+  run();
+
+  var observer = new MutationObserver(run);
+  observer.observe(document.body, { childList: true, subtree: true });
+
+})();
