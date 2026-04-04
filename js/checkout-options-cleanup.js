@@ -4,14 +4,37 @@
   const DEBUG = true;
 
   function log() {
-    if (DEBUG) console.log("[CheckoutCleanUp]", ...arguments);
+    if (DEBUG) console.log("[CheckoutSummaryCleanUp]", ...arguments);
+  }
+
+  function normalizeText(str) {
+    return String(str || "").replace(/\s+/g, " ").trim();
+  }
+
+  function isCheckoutPage() {
+    const txt = (document.body?.innerText || "").toLowerCase();
+    return (
+      txt.includes("shipping address") &&
+      txt.includes("promo code") &&
+      txt.includes("calculated at payment")
+    );
+  }
+
+  function findSummaryContainer() {
+    return (
+      document.querySelector('[data-testid="cartitemsummary-summary"]') ||
+      document.querySelector('[data-testid="cartitem-summary"]') ||
+      document.querySelector('[data-testid="cartitem-content"]')?.closest("div")
+    );
   }
 
   function injectStyles() {
-    if (document.getElementById("bodovera-checkout-cleanup-styles")) return;
+    if (document.getElementById("bdv-checkout-summary-cleanup-styles")) return;
 
-    const css = `
-      .bdv-checkout-config {
+    const style = document.createElement("style");
+    style.id = "bdv-checkout-summary-cleanup-styles";
+    style.textContent = `
+      .bdv-clean-config {
         display: block !important;
         margin-top: 4px !important;
         font-size: 11px !important;
@@ -23,76 +46,53 @@
         max-width: 100% !important;
       }
 
-      .bdv-checkout-config .bdv-line1 {
+      .bdv-clean-config-main {
         display: block;
-        font-weight: 500;
-        color: #666;
-        margin-bottom: 2px;
       }
 
-      .bdv-checkout-config .bdv-line2 {
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+      .bdv-clean-config-extra {
+        display: none;
+        margin-top: 3px;
       }
 
-      .bdv-checkout-config .bdv-more {
+      .bdv-clean-config.bdv-open .bdv-clean-config-extra {
+        display: block;
+      }
+
+      .bdv-clean-config-toggle {
         display: inline-block;
-        margin-top: 2px;
+        margin-top: 3px;
         font-size: 10px;
-        color: #888;
+        color: #888 !important;
         cursor: pointer;
         user-select: none;
       }
-
-      .bdv-checkout-config.bdv-open .bdv-line2 {
-        display: block;
-        -webkit-line-clamp: unset;
-        overflow: visible;
-      }
-
-      .bdv-checkout-config.bdv-open .bdv-more::after {
-        content: " less";
-      }
-
-      .bdv-checkout-config .bdv-more::after {
-        content: " more";
-      }
     `;
-
-    const style = document.createElement("style");
-    style.id = "bodovera-checkout-cleanup-styles";
-    style.textContent = css;
     document.head.appendChild(style);
   }
 
-  function normalizeText(str) {
-    return String(str || "").replace(/\s+/g, " ").trim();
-  }
-
   function looksLikeConfigText(text) {
-    if (!text) return false;
-
-    const upper = text.toUpperCase();
-
+    const t = normalizeText(text).toUpperCase();
     return (
-      upper.includes("WIDTH:") ||
-      upper.includes("LENGTH:") ||
-      upper.includes("STYLE:") ||
-      upper.includes("CONTROL TYPE:") ||
-      upper.includes("CONTROL SIDE:") ||
-      upper.includes("MOUNT:") ||
-      upper.includes("MOTOR TYPE:") ||
-      upper.includes("ACCESSORIES:")
+      t.includes("WIDTH:") ||
+      t.includes("LENGTH:") ||
+      t.includes("STYLE:") ||
+      t.includes("MOUNT:") ||
+      t.includes("CONTROL TYPE:") ||
+      t.includes("CONTROL SIDE:") ||
+      t.includes("MOTOR TYPE:") ||
+      t.includes("ACCESSORIES:")
     );
   }
 
-  function cleanConfigText(text) {
+  function cleanText(text) {
     let t = normalizeText(text);
 
     t = t.replace(/^PRICE_[^,]*,\s*/i, "");
-    t = t.replace(/^CONFIG[_\s-]*PRICE[:\s-]*/i, "");
+    t = t.replace(/\bWIDTHINC:[^,]*,?\s*/gi, "");
+    t = t.replace(/\bLENGTHINC:[^,]*,?\s*/gi, "");
+    t = t.replace(/\bCONTROL LENGTH:N\/A,?\s*/gi, "");
+    t = t.replace(/\bMOTOR CONTROL:1 CHANNEL REMOTE,?\s*/gi, "");
     t = t.replace(/\bN\/A\b/gi, "—");
     t = t.replace(/\s*,\s*/g, ", ");
     t = t.replace(/\s*:\s*/g, ": ");
@@ -100,114 +100,29 @@
     return t;
   }
 
-  function splitConfigText(text) {
-    const parts = cleanConfigText(text)
+  function splitText(text) {
+    const parts = cleanText(text)
       .split(",")
-      .map((x) => normalizeText(x))
+      .map(s => normalizeText(s))
       .filter(Boolean);
 
-    const priority = [];
-    const rest = [];
+    const main = [];
+    const extra = [];
 
-    parts.forEach((part) => {
-      const upper = part.toUpperCase();
+    parts.forEach(part => {
+      const u = part.toUpperCase();
 
       if (
-        upper.startsWith("WIDTH:") ||
-        upper.startsWith("WIDTHINC:") ||
-        upper.startsWith("LENGTH:") ||
-        upper.startsWith("LENGTHINC:") ||
-        upper.startsWith("MOUNT:") ||
-        upper.startsWith("STYLE:")
+        u.startsWith("WIDTH:") ||
+        u.startsWith("LENGTH:") ||
+        u.startsWith("MOUNT:") ||
+        u.startsWith("STYLE:")
       ) {
-        priority.push(part);
+        main.push(part);
       } else {
-        rest.push(part);
+        extra.push(part);
       }
     });
 
     return {
-      line1: priority.join(" • "),
-      line2: rest.join(" • ")
-    };
-  }
-
-  function buildCleanBlock(originalText) {
-    const split = splitConfigText(originalText);
-
-    const wrap = document.createElement("div");
-    wrap.className = "bdv-checkout-config";
-
-    const line1 = document.createElement("div");
-    line1.className = "bdv-line1";
-    line1.textContent = split.line1 || "";
-
-    const line2 = document.createElement("div");
-    line2.className = "bdv-line2";
-    line2.textContent = split.line2 || "";
-
-    wrap.appendChild(line1);
-
-    if (split.line2) {
-      wrap.appendChild(line2);
-
-      const toggle = document.createElement("span");
-      toggle.className = "bdv-more";
-      toggle.textContent = "Show";
-      toggle.addEventListener("click", function () {
-        wrap.classList.toggle("bdv-open");
-        toggle.textContent = wrap.classList.contains("bdv-open") ? "Show" : "Show";
-      });
-
-      wrap.appendChild(toggle);
-    }
-
-    return wrap;
-  }
-
-  function processTextNode(el) {
-    if (!el || el.dataset.bdvCheckoutCleaned === "1") return;
-
-    const text = normalizeText(el.textContent || "");
-    if (!looksLikeConfigText(text)) return;
-
-    log("Cleaning checkout config block:", text);
-
-    el.textContent = "";
-    el.appendChild(buildCleanBlock(text));
-    el.dataset.bdvCheckoutCleaned = "1";
-  }
-
-  function scan() {
-    document.querySelectorAll("div, p, span").forEach((el) => {
-      if (el.children.length > 0) return;
-
-      const text = normalizeText(el.textContent || "");
-      if (!looksLikeConfigText(text)) return;
-
-      processTextNode(el);
-    });
-  }
-
-  function init() {
-    injectStyles();
-    scan();
-
-    const observer = new MutationObserver(() => {
-      scan();
-    });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    log("Checkout cleanup running");
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
+      main: main.join(" • "),
