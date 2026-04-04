@@ -7,19 +7,6 @@
     if (DEBUG) console.log("[CartOptionsCleanUp]", ...arguments);
   }
 
-  function isCartLikePage() {
-    const path = (location.pathname || "").toLowerCase();
-    const full = (location.href || "").toLowerCase();
-
-    return (
-      path.includes("/shoppingcart") ||
-      path.includes("/cart") ||
-      path.includes("/checkout") ||
-      full.includes("shoppingcart") ||
-      full.includes("checkout")
-    );
-  }
-
   function normalizeText(str) {
     return String(str || "").replace(/\s+/g, " ").trim();
   }
@@ -157,6 +144,7 @@
     }
 
     ul.dataset.cartOptionsCleaned = "1";
+    log("Cleaned modal/cart option list", ul);
   }
 
   function looksLikeOptionsText(text) {
@@ -207,8 +195,6 @@
   }
 
   function init() {
-    if (!isCartLikePage()) return;
-
     run();
 
     const observer = new MutationObserver(function () {
