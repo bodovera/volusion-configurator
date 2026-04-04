@@ -10,32 +10,34 @@
   }
 
   function formatNumber(n) {
-    return Number.isInteger(n) ? String(n) : String(n).replace(/\.0+$/, "");
+    var s = String(Math.round(n * 1000) / 1000);
+    return s.replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
   }
 
-  function getFieldMap(text) {
-    var parts = String(text || "").split(",");
+  function parseFields(text) {
     var out = [];
-    for (var i = 0; i < parts.length; i++) {
-      var p = parts[i].trim();
-      var idx = p.indexOf(":");
-      if (idx > -1) {
+    String(text || "").split(",").forEach(function (part) {
+      part = part.trim();
+      if (!part) return;
+      var idx = part.indexOf(":");
+      if (idx === -1) {
+        out.push({ key: "", value: part });
+      } else {
         out.push({
-          key: p.slice(0, idx).trim(),
-          value: p.slice(idx + 1).trim()
+          key: part.slice(0, idx).trim(),
+          value: part.slice(idx + 1).trim()
         });
-      } else if (p) {
-        out.push({ key: "", value: p });
       }
-    }
+    });
     return out;
   }
 
-  function cleanOptionText(text) {
-    var fields = getFieldMap(text);
+  function buildCleanText(raw) {
+    var fields = parseFields(raw);
     var map = {};
+
     fields.forEach(function (f) {
-      map[f.key] = f.value;
+      if (f.key) map[f.key] = f.value;
     });
 
     var width = parseNumber(map["Width"]);
@@ -48,25 +50,16 @@
 
     var result = [];
 
-    if (finalWidth || map["Width"]) result.push("Width: " + formatNumber(finalWidth));
-    if (finalLength || map["Length"]) result.push("Length: " + formatNumber(finalLength));
+    if ("Width" in map) result.push("Width: " + formatNumber(finalWidth));
+    if ("Length" in map) result.push("Length: " + formatNumber(finalLength));
 
     fields.forEach(function (f) {
       var k = f.key;
       var v = f.value;
 
       if (!k) return;
-
-      if (
-        k === "Width" ||
-        k === "WidthInc" ||
-        k === "Length" ||
-        k === "LengthInc"
-      ) {
-        return;
-      }
-
       if (/^PRICE_/i.test(k)) return;
+      if (k === "Width" || k === "WidthInc" || k === "Length" || k === "LengthInc") return;
       if (k === "Control Length" && /^N\/A$/i.test(v)) return;
       if (k === "Motor Control" && /^Please Select/i.test(v)) return;
       if (k === "Motor Type" && /^Please Select/i.test(v)) return;
@@ -77,30 +70,47 @@
     return result.join(" • ");
   }
 
-  function processOptionsNode(el) {
-    if (!el || el.dataset.bdvCheckoutCleaned === "1") return;
+  function getOptionNodes() {
+    return document.querySelectorAll(
+      '[data-testid="cartitemsummary-summary"] [data-testid="cartitem-content"] > .flex.flex-row.space-x-4 > .flex.flex-col.w-full > .text-sm'
+    );
+  }
 
-    var txt = (el.textContent || "").trim();
-    if (!txt.includes("Width:") || !txt.includes("Length:")) return;
-    if (!txt.includes("PRICE_")) return;
+  function processNode(node) {
+    if (!node) return;
 
-    el.textContent = cleanOptionText(txt);
-    el.dataset.bdvCheckoutCleaned = "1";
+    var raw = (node.getAttribute("data-bdv-raw") || node.textContent || "").trim();
+    if (!raw.includes("Width:") || !raw.includes("Length:") || !raw.includes("PRICE_")) return;
+
+    if (!node.getAttribute("data-bdv-raw")) {
+      node.setAttribute("data-bdv-raw", raw);
+    }
+
+    var cleaned = buildCleanText(raw);
+
+    if (node.textContent.trim() !== cleaned) {
+      node.textContent = cleaned;
+    }
+
+    node.setAttribute("data-bdv-cleaned", "1");
   }
 
   function run() {
-    var rows = document.querySelectorAll(
-      'div[data-testid="cartitemsummary-summary"] div[data-testid="cartitem-content"]'
-    );
-
-    rows.forEach(function (row) {
-      var optionsNode = row.querySelector(
-        ':scope > div.flex.flex-row.space-x-4 > div.flex.flex-col.w-full > div.text-sm'
-      );
-
-      if (optionsNode) processOptionsNode(optionsNode);
-    });
+    getOptionNodes().forEach(processNode);
   }
+
+  var tries = 0;
+  var timer = setInterval(function () {
+    run();
+    tries++;
+    if (tries > 40) clearInterval(timer);
+  }, 500);
+
+  var observer = new MutationObserver(function () {
+    run();
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
 
   run();
 })();
