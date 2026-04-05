@@ -1,0 +1,30 @@
+/* ONLY affect product page swatches */
+.swatchWrapper {
+  border: 2px solid #ddd;
+  padding: 6px;
+  border-radius: 6px;
+  transition: 0.2s;
+}
+
+.swatchWrapper:hover {
+  border-color: #000;
+}
+
+/* Selected state */
+.swatchWrapper.selected,
+.swatchWrapper.active {
+  border-color: #000;
+  background: #f5f5f5;
+}
+
+/* Make images bigger */
+.swatchWrapper img {
+  width: 80px !important;   /* adjust based on your swatch upload size */
+  height: auto;
+  display: block;
+}
+
+/* Space them out nicely */
+.flex.items-center .swatchWrapper {
+  margin-right: 10px;
+}
