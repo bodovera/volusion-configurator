@@ -156,27 +156,10 @@
   function hideProductCode() {
     document.querySelectorAll("[data-product-code]").forEach(function (el) {
       hide(el);
-      log("Hid product code container", el);
     });
 
     document.querySelectorAll(".ProductCode, #ProductCode").forEach(function (el) {
       hide(el);
-      log("Hid ProductCode element", el);
-    });
-
-    document.querySelectorAll("strong, div, p, span, label").forEach(function (el) {
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
-
-      if (
-        txt === "PRODUCTCODE:" ||
-        txt === "PRODUCTCODE" ||
-        txt === "PRODUCT CODE:" ||
-        txt === "PRODUCT CODE"
-      ) {
-        const wrap = el.closest(".flex.flex-wrap") || el.parentElement || el;
-        hide(wrap);
-        log("Hid ProductCode text wrapper", wrap);
-      }
     });
   }
 
@@ -191,7 +174,6 @@
         /\d+\s*x\s*\d+/i.test(txt)
       ) {
         el.textContent = "Product Price";
-        log("Cleaned ProductPrice_Name", el);
       }
     });
   }
@@ -202,48 +184,37 @@
   }
 
   function injectVisualSwatchStyles() {
-    if (document.getElementById("bod-visual-swatch-styles")) return;
+    if (document.getElementById("bod-safe-swatch-styles")) return;
 
     const css = `
-      .bod-option-hidden-row {
-        display: none !important;
-      }
-
-      .bod-swatch-grid {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 12px !important;
-        margin-top: 10px !important;
-        width: 100% !important;
-      }
-
-      .bod-swatch-box {
+      [data-doogma-value].swatchWrapper {
         display: inline-flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: flex-start !important;
-        width: 170px !important;
+        width: 160px !important;
         min-height: 190px !important;
         padding: 12px !important;
+        margin: 6px !important;
         border: 2px solid #cfcfcf !important;
         border-radius: 10px !important;
         background: #fff !important;
         cursor: pointer !important;
         box-sizing: border-box !important;
         text-align: center !important;
-        transition: all 0.15s ease !important;
+        vertical-align: top !important;
       }
 
-      .bod-swatch-box:hover {
+      [data-doogma-value].swatchWrapper:hover {
         border-color: #666 !important;
       }
 
-      .bod-swatch-box.bod-selected {
+      [data-doogma-value].swatchWrapper.bod-selected {
         border-color: #222 !important;
         box-shadow: 0 0 0 2px rgba(0,0,0,0.12) !important;
       }
 
-      .bod-swatch-box img {
+      [data-doogma-value].swatchWrapper img {
         width: 120px !important;
         height: 120px !important;
         max-width: 120px !important;
@@ -254,18 +225,19 @@
         border: 0 !important;
       }
 
-      .bod-swatch-box-label {
+      .bod-swatch-label {
         display: block !important;
         font-size: 13px !important;
         line-height: 1.2 !important;
         color: #111 !important;
         white-space: normal !important;
         text-align: center !important;
+        margin-top: 6px !important;
       }
     `;
 
     const style = document.createElement("style");
-    style.id = "bod-visual-swatch-styles";
+    style.id = "bod-safe-swatch-styles";
     style.textContent = css;
     document.head.appendChild(style);
   }
@@ -287,166 +259,83 @@
     return "";
   }
 
-  function findHeadingForOptionRow(row) {
-    if (!row) return null;
-
-    let node = row.previousElementSibling;
-    while (node) {
-      if (
-        node.matches &&
-        (
-          node.matches('strong[role="heading"]') ||
-          node.matches("strong") ||
-          node.matches("h1,h2,h3,h4,h5,h6")
-        )
-      ) {
-        return node;
-      }
-      node = node.previousElementSibling;
-    }
-
-    return null;
+  function getAllChoiceInputs() {
+    return Array.from(
+      document.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
+    );
   }
 
-  function collectInputsForHeading(heading) {
-    const results = [];
-    if (!heading || !heading.parentElement) return results;
+  function findMatchingInputForSwatch(sw) {
+    const rawValue =
+      sw.getAttribute("data-doogma-value") ||
+      (sw.querySelector("img") && (
+        sw.querySelector("img").getAttribute("alt") ||
+        sw.querySelector("img").getAttribute("title")
+      )) ||
+      "";
 
-    const kids = Array.from(heading.parentElement.children);
-    const start = kids.indexOf(heading);
-    if (start < 0) return results;
+    const swatchKey = normalizeText(rawValue);
+    if (!swatchKey) return null;
 
-    for (let i = start + 1; i < kids.length; i++) {
-      const el = kids[i];
+    const inputs = getAllChoiceInputs();
 
-      if (
-        el.matches &&
-        (
-          el.matches('strong[role="heading"]') ||
-          el.matches("strong") ||
-          el.matches("h1,h2,h3,h4,h5,h6")
-        )
-      ) {
-        break;
-      }
-
-      el.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]').forEach(function (input) {
-        results.push(input);
-      });
-    }
-
-    return results;
-  }
-
-  function getSwatchAreaForHeading(heading) {
-    if (!heading || !heading.parentElement) return null;
-
-    const kids = Array.from(heading.parentElement.children);
-    const start = kids.indexOf(heading);
-    if (start < 0) return null;
-
-    for (let i = start + 1; i < kids.length; i++) {
-      const el = kids[i];
-
-      if (
-        el.matches &&
-        (
-          el.matches('strong[role="heading"]') ||
-          el.matches("strong") ||
-          el.matches("h1,h2,h3,h4,h5,h6")
-        )
-      ) {
-        break;
-      }
-
-      if (el.querySelector && el.querySelector("[data-doogma-value].swatchWrapper")) {
-        return el;
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      const labelText = normalizeText(getOptionInputLabelText(input));
+      if (labelText && labelText === swatchKey) {
+        return input;
       }
     }
 
     return null;
   }
 
-  function buildSwatchInputMap(inputs) {
-    const map = {};
-    inputs.forEach(function (input) {
-      const txt = normalizeText(getOptionInputLabelText(input));
-      if (txt) map[txt] = input;
-    });
-    return map;
-  }
+  function syncSwatchSelections() {
+    document.querySelectorAll("[data-doogma-value].swatchWrapper").forEach(function (sw) {
+      sw.classList.remove("bod-selected");
 
-  function syncSelectedVisualState(container) {
-    if (!container) return;
-
-    container.querySelectorAll(".bod-swatch-box").forEach(function (box) {
-      const inputId = box.getAttribute("data-input-id");
-      const input = inputId ? document.getElementById(inputId) : null;
-
+      const input = findMatchingInputForSwatch(sw);
       if (input && input.checked) {
-        box.classList.add("bod-selected");
-      } else {
-        box.classList.remove("bod-selected");
+        sw.classList.add("bod-selected");
       }
     });
   }
 
-  function createVisualBoxesForHeading(heading) {
-    const swatchArea = getSwatchAreaForHeading(heading);
-    if (!swatchArea) return;
+  function ensureSwatchLabels() {
+    document.querySelectorAll("[data-doogma-value].swatchWrapper").forEach(function (sw) {
+      if (sw.querySelector(".bod-swatch-label")) return;
 
-    const inputs = collectInputsForHeading(heading);
-    if (!inputs.length) return;
-
-    const inputMap = buildSwatchInputMap(inputs);
-    const swatches = Array.from(swatchArea.querySelectorAll("[data-doogma-value].swatchWrapper"));
-    if (!swatches.length) return;
-
-    let grid = swatchArea.querySelector(".bod-swatch-grid");
-    if (!grid) {
-      grid = document.createElement("div");
-      grid.className = "bod-swatch-grid";
-      swatchArea.appendChild(grid);
-    } else {
-      grid.innerHTML = "";
-    }
-
-    swatches.forEach(function (sw) {
-      const imgEl = sw.querySelector("img");
+      const input = findMatchingInputForSwatch(sw);
       const rawValue =
         sw.getAttribute("data-doogma-value") ||
-        (imgEl && (imgEl.getAttribute("alt") || imgEl.getAttribute("title"))) ||
+        (sw.querySelector("img") && (
+          sw.querySelector("img").getAttribute("alt") ||
+          sw.querySelector("img").getAttribute("title")
+        )) ||
         "";
 
-      const key = normalizeText(rawValue);
-      const input = inputMap[key];
+      const labelText = (input ? getOptionInputLabelText(input) : rawValue || "").trim();
+      if (!labelText) return;
 
-      if (!input) {
-        log("No matching input found for swatch", rawValue);
-        return;
-      }
-
-      const imgSrc = imgEl ? imgEl.getAttribute("src") : "";
-      const labelText = (getOptionInputLabelText(input).trim() || rawValue).replace(/\s+/g, " ").trim();
-
-      const box = document.createElement("button");
-      box.type = "button";
-      box.className = "bod-swatch-box";
-      if (input.id) box.setAttribute("data-input-id", input.id);
-
-      if (imgSrc) {
-        const boxImg = document.createElement("img");
-        boxImg.src = imgSrc;
-        boxImg.alt = labelText;
-        box.appendChild(boxImg);
-      }
-
-      const label = document.createElement("span");
-      label.className = "bod-swatch-box-label";
+      const label = document.createElement("div");
+      label.className = "bod-swatch-label";
       label.textContent = labelText;
-      box.appendChild(label);
+      sw.appendChild(label);
+    });
+  }
 
-      box.addEventListener("click", function () {
+  function wireSwatchClicks() {
+    document.querySelectorAll("[data-doogma-value].swatchWrapper").forEach(function (sw) {
+      if (sw.dataset.bodClickBound === "1") return;
+      sw.dataset.bodClickBound = "1";
+
+      sw.addEventListener("click", function (e) {
+        const tag = (e.target && e.target.tagName ? e.target.tagName : "").toLowerCase();
+        if (tag === "input" || tag === "label" || tag === "select" || tag === "option") return;
+
+        const input = findMatchingInputForSwatch(sw);
+        if (!input) return;
+
         if (input.type === "radio") {
           input.checked = true;
         } else if (input.type === "checkbox") {
@@ -454,36 +343,16 @@
         }
 
         input.dispatchEvent(new Event("change", { bubbles: true }));
-        syncSelectedVisualState(grid);
+        syncSwatchSelections();
       });
-
-      grid.appendChild(box);
     });
-
-    const rowWrap = getFieldWrapper(inputs[0]);
-    if (rowWrap) {
-      rowWrap.classList.add("bod-option-hidden-row");
-    }
-
-    syncSelectedVisualState(grid);
   }
 
   function enhanceVisualSwatches() {
     injectVisualSwatchStyles();
-
-    const seen = new Set();
-
-    document.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]').forEach(function (input) {
-      const row = getFieldWrapper(input);
-      const heading = findHeadingForOptionRow(row);
-      if (!heading) return;
-
-      const key = heading.textContent.trim();
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      createVisualBoxesForHeading(heading);
-    });
+    ensureSwatchLabels();
+    wireSwatchClicks();
+    syncSwatchSelections();
   }
 
   function refreshAll() {
@@ -573,17 +442,17 @@
     enhanceVisualSwatches();
   });
 
-  if (document.body) {
+  function startObserver() {
+    if (!document.body) return;
     observer.observe(document.body, {
       childList: true,
       subtree: true
     });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startObserver);
   } else {
-    document.addEventListener("DOMContentLoaded", function () {
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-    });
+    startObserver();
   }
 })();
