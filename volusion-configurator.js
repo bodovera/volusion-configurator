@@ -135,56 +135,57 @@
     if (document.getElementById('bod-option-box-styles')) return;
 
     var css = `
-      .bod-option-boxes {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 8px;
-        margin-bottom: 8px;
+      .option-image-boxes-ready .swatchRowWrap {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
       }
 
-      .bod-option-box {
-        width: 88px;
-        min-height: 96px;
-        border: 2px solid #cfcfcf;
-        border-radius: 10px;
-        background: #fff;
-        padding: 8px 6px;
-        box-sizing: border-box;
-        display: inline-flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
-        text-align: center;
-        cursor: pointer;
-        user-select: none;
+      .option-image-boxes-ready .swatchWrapper {
+        display: inline-flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 88px !important;
+        min-height: 96px !important;
+        padding: 8px 6px !important;
+        margin: 0 !important;
+        border: 2px solid #cfcfcf !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        cursor: pointer !important;
+        box-sizing: border-box !important;
+        text-align: center !important;
       }
 
-      .bod-option-box:hover {
-        border-color: #666;
+      .option-image-boxes-ready .swatchWrapper:hover {
+        border-color: #666 !important;
       }
 
-      .bod-option-box.is-selected {
-        border-color: #5850ec;
-        box-shadow: 0 0 0 2px rgba(88, 80, 236, 0.14);
+      .option-image-boxes-ready .swatchWrapper.selected,
+      .option-image-boxes-ready .swatchWrapper.active {
+        border-color: #5850ec !important;
+        box-shadow: 0 0 0 2px rgba(88, 80, 236, 0.14) !important;
       }
 
-      .bod-option-box img {
-        max-width: 52px;
-        max-height: 52px;
-        width: auto;
-        height: auto;
-        display: block;
-        margin: 0 0 6px 0;
+      .option-image-boxes-ready .swatchWrapper img {
+        max-width: 52px !important;
+        max-height: 52px !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
+        margin: 0 0 6px 0 !important;
       }
 
-      .bod-option-box-text {
-        display: block;
-        font-size: 12px;
-        line-height: 1.2;
-        color: #1f2937;
-        white-space: normal;
-        text-align: center;
+      .option-image-boxes-ready .option-box-text {
+        display: block !important;
+        font-size: 12px !important;
+        line-height: 1.2 !important;
+        color: #1f2937 !important;
+        white-space: normal !important;
+        text-align: center !important;
       }
 
       .bod-option-hidden {
@@ -246,7 +247,7 @@
       }
     }
 
-    if (!swatchArea || !rowsWrap) return null;
+    if (!swatchArea) return null;
 
     return {
       heading: heading,
@@ -255,154 +256,82 @@
     };
   }
 
-  function getInputLabelText(input) {
-    if (!input || !input.id) return '';
-    var label = document.querySelector('label[for="' + input.id + '"]');
-    return label ? normalizeText(label.textContent) : '';
-  }
-
-  function getInputsFromRowsWrap(rowsWrap) {
-    return Array.from(
-      rowsWrap.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
-    );
-  }
-
-  function getSwatchesFromArea(swatchArea) {
-    return Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).map(function (node) {
-      var img = node.querySelector('img');
-      var key =
-        normalizeText(node.getAttribute('data-doogma-value')) ||
-        normalizeText(img && img.getAttribute('alt')) ||
-        normalizeText(img && img.getAttribute('title'));
-
-      return {
-        node: node,
-        key: key,
-        src: img ? (img.getAttribute('data-src') || img.getAttribute('src') || '') : '',
-        alt: img ? (img.getAttribute('alt') || '') : ''
-      };
-    }).filter(function (x) {
-      return x.key;
-    });
-  }
-
-  function buildBoxesForSection(parts) {
+  function enhanceSwatchArea(parts) {
     var heading = parts.heading;
     var swatchArea = parts.swatchArea;
     var rowsWrap = parts.rowsWrap;
 
-    if (heading.dataset.bodOptionBoxesReady === '1') return;
+    if (!swatchArea || heading.dataset.bodOptionBoxesReady === '1') return;
 
-    var inputs = getInputsFromRowsWrap(rowsWrap);
-    var swatches = getSwatchesFromArea(swatchArea);
+    swatchArea.classList.add('option-image-boxes-ready');
 
-    if (!inputs.length || !swatches.length) return;
+    var firstWrap = swatchArea.querySelector('.flex.flex-wrap');
+    if (firstWrap) {
+      firstWrap.classList.add('swatchRowWrap');
+    }
 
-    var swatchMap = {};
-    swatches.forEach(function (s) {
-      swatchMap[s.key] = s;
+    Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
+      if (!sw.querySelector('.option-box-text')) {
+        var text =
+          sw.getAttribute('data-doogma-value') ||
+          (sw.querySelector('img') && (sw.querySelector('img').getAttribute('alt') || sw.querySelector('img').getAttribute('title'))) ||
+          '';
+
+        var label = document.createElement('div');
+        label.className = 'option-box-text';
+        label.textContent = titleCase(text);
+        sw.appendChild(label);
+      }
     });
 
-    var matched = inputs.map(function (input) {
-      var labelText = getInputLabelText(input);
-      var swatch = swatchMap[labelText];
-      if (!swatch) return null;
+    if (rowsWrap) {
+      rowsWrap.classList.add('bod-option-hidden');
+    }
 
-      return {
-        input: input,
-        labelText: labelText,
-        swatch: swatch
-      };
-    }).filter(Boolean);
-
-    if (!matched.length) return;
-
-    var boxesWrap = document.createElement('div');
-    boxesWrap.className = 'bod-option-boxes';
-    boxesWrap.setAttribute('data-heading-text', normalizeText(heading.textContent));
-
-    matched.forEach(function (item) {
-      var input = item.input;
-      var labelText = item.labelText;
-      var swatch = item.swatch;
-
-      var box = document.createElement('div');
-      box.className = 'bod-option-box';
-      box.setAttribute('data-input-id', input.id || '');
-      box.setAttribute('tabindex', '0');
-      box.setAttribute('role', 'button');
-      box.setAttribute('aria-label', labelText);
-
-      if (swatch.src) {
-        var img = document.createElement('img');
-        img.src = swatch.src;
-        img.alt = labelText;
-        box.appendChild(img);
-      }
-
-      var textEl = document.createElement('div');
-      textEl.className = 'bod-option-box-text';
-      textEl.textContent = titleCase(labelText);
-      box.appendChild(textEl);
-
-      function activate(currentInput) {
-        return function (evt) {
-          if (evt) evt.preventDefault();
-
-          if (currentInput.type === 'radio') {
-            Array.from(document.querySelectorAll('input[type="radio"][name="' + currentInput.name + '"]')).forEach(function (r) {
-              r.checked = false;
-            });
-            currentInput.checked = true;
-          } else {
-            currentInput.checked = !currentInput.checked;
-          }
-
-          currentInput.dispatchEvent(new Event('click', { bubbles: true }));
-          currentInput.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-      }
-
-      var handler = activate(input);
-
-      box.addEventListener('click', handler);
-      box.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') handler(e);
-      });
-
-      boxesWrap.appendChild(box);
-    });
-
-    swatchArea.classList.add('bod-option-hidden');
-    rowsWrap.classList.add('bod-option-hidden');
-    heading.insertAdjacentElement('afterend', boxesWrap);
     heading.dataset.bodOptionBoxesReady = '1';
   }
 
   function syncOptionBoxesVisibility() {
-    document.querySelectorAll('.bod-option-boxes').forEach(function (boxesWrap) {
-      var visibleCount = 0;
+    getOptionSectionHeaders().forEach(function (heading) {
+      var parts = getSectionParts(heading);
+      if (!parts || !parts.swatchArea) return;
 
-      Array.from(boxesWrap.querySelectorAll('.bod-option-box')).forEach(function (box) {
-        var inputId = box.getAttribute('data-input-id');
-        var input = inputId ? document.getElementById(inputId) : null;
+      var swatchArea = parts.swatchArea;
+      var rowsWrap = parts.rowsWrap;
 
-        if (!input) {
-          box.style.display = 'none';
-          return;
-        }
+      if (!rowsWrap) return;
 
-        var wrapper = getFieldWrapper(input);
-        var show = !!wrapper && wrapper.style.display !== 'none';
+      var wrappers = Array.from(
+        rowsWrap.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
+      );
 
-        box.style.display = show ? '' : 'none';
-        if (show) visibleCount++;
-
-        if (input.checked) box.classList.add('is-selected');
-        else box.classList.remove('is-selected');
+      var anyVisible = wrappers.some(function (input) {
+        var wrap = getFieldWrapper(input);
+        return wrap && wrap.style.display !== 'none';
       });
 
-      boxesWrap.style.display = visibleCount > 0 ? 'flex' : 'none';
+      swatchArea.style.display = anyVisible ? '' : 'none';
+
+      Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
+        sw.classList.remove('selected');
+        sw.classList.remove('active');
+      });
+
+      Array.from(rowsWrap.querySelectorAll('input[type="radio"][name^="SELECT_"]:checked, input[type="checkbox"][name^="SELECT_"]:checked')).forEach(function (input) {
+        var label = '';
+        if (input.id) {
+          var lab = document.querySelector('label[for="' + input.id + '"]');
+          label = lab ? normalizeText(lab.textContent) : '';
+        }
+
+        Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
+          var key = normalizeText(sw.getAttribute('data-doogma-value'));
+          if (key && label && key === label) {
+            sw.classList.add('selected');
+            sw.classList.add('active');
+          }
+        });
+      });
     });
   }
 
@@ -411,7 +340,7 @@
 
     getOptionSectionHeaders().forEach(function (heading) {
       var parts = getSectionParts(heading);
-      if (parts) buildBoxesForSection(parts);
+      if (parts) enhanceSwatchArea(parts);
     });
 
     syncOptionBoxesVisibility();
