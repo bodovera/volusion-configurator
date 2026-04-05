@@ -2,11 +2,6 @@
   const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=1';
   let OPTION_RULES = {};
   let isRefreshing = false;
-  let boxesBuilt = false;
-
-  function log() {
-    console.log.apply(console, ['[VolusionConfigurator]'].concat([].slice.call(arguments)));
-  }
 
   function getSelectedOptionIds() {
     const ids = [];
@@ -203,93 +198,185 @@
     document.head.appendChild(style);
   }
 
-  function getGroups() {
-    return Array.from(document.querySelectorAll("strong[role='heading']")).map(function (heading) {
-      return {
-        heading: heading,
-        wrap: heading.parentElement
-      };
-    }).filter(function (x) {
-      return x.wrap;
+  function normalizeText(str) {
+    return String(str || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function titleCase(str) {
+    return String(str || '').replace(/\b\w/g, function (m) {
+      return m.toUpperCase();
     });
   }
 
-  function getTopSwatchArea(groupWrap) {
-    var firstLevelDivs = Array.from(groupWrap.children).filter(function (el) {
-      return el.tagName === 'DIV';
+  function getOptionSectionHeaders() {
+    return Array.from(document.querySelectorAll('strong[role="heading"]')).filter(function (el) {
+      var txt = normalizeText(el.textContent);
+      return txt && txt !== 'choose your options:';
     });
+  }
 
-    for (var i = 0; i < firstLevelDivs.length; i++) {
-      var div = firstLevelDivs[i];
-      if (div.querySelector('[data-doogma-value] img')) {
-        return div;
+  function getSectionParts(heading) {
+    var parent = heading.parentElement;
+    if (!parent) return null;
+
+    var children = Array.from(parent.children);
+    var headingIndex = children.indexOf(heading);
+    if (headingIndex < 0) return null;
+
+    var swatchArea = null;
+    var rowsWrap = null;
+
+    for (var i = headingIndex + 1; i < children.length; i++) {
+      var el = children[i];
+
+      if (el.matches && el.matches('strong[role="heading"]')) break;
+
+      if (!swatchArea && el.querySelector && el.querySelector('.swatchWrapper[data-doogma-value] img')) {
+        swatchArea = el;
+        continue;
+      }
+
+      if (
+        !rowsWrap &&
+        el.querySelector &&
+        el.querySelector('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
+      ) {
+        rowsWrap = el;
+        continue;
       }
     }
 
-    return null;
+    if (!swatchArea || !rowsWrap) return null;
+
+    return {
+      heading: heading,
+      swatchArea: swatchArea,
+      rowsWrap: rowsWrap
+    };
   }
 
-  function getNativeRowsWrap(groupWrap) {
-    return groupWrap.querySelector('.w-100');
-  }
-
-  function getInputRows(groupWrap) {
-    return Array.from(
-      groupWrap.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
-    ).map(function (input) {
-      return {
-        input: input,
-        row: input.closest('.flex.items-center') || getFieldWrapper(input)
-      };
-    }).filter(function (x) {
-      return x.row;
-    });
-  }
-
-  function getLabelTextForInput(input) {
+  function getInputLabelText(input) {
     if (!input || !input.id) return '';
     var label = document.querySelector('label[for="' + input.id + '"]');
-    if (!label) return '';
-    return (label.textContent || '').replace(/\s+/g, ' ').trim();
+    return label ? normalizeText(label.textContent) : '';
   }
 
-  function getSwatchMap(groupWrap) {
-    var map = new Map();
+  function getInputsFromRowsWrap(rowsWrap) {
+    return Array.from(
+      rowsWrap.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
+    );
+  }
 
-    var swatchNodes = Array.from(groupWrap.querySelectorAll('[data-doogma-value]')).filter(function (el) {
-      return !!el.querySelector('img');
-    });
-
-    swatchNodes.forEach(function (node) {
-      var value = node.getAttribute('data-doogma-value');
-      if (!value || map.has(value)) return;
-
+  function getSwatchesFromArea(swatchArea) {
+    return Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).map(function (node) {
       var img = node.querySelector('img');
-      if (!img) return;
+      var key =
+        normalizeText(node.getAttribute('data-doogma-value')) ||
+        normalizeText(img && img.getAttribute('alt')) ||
+        normalizeText(img && img.getAttribute('title'));
 
-      map.set(value, {
-        src: img.getAttribute('data-src') || img.getAttribute('src') || '',
-        alt: img.getAttribute('alt') || '',
-        title: img.getAttribute('title') || ''
-      });
+      return {
+        node: node,
+        key: key,
+        src: img ? (img.getAttribute('data-src') || img.getAttribute('src') || '') : '',
+        alt: img ? (img.getAttribute('alt') || '') : ''
+      };
+    }).filter(function (x) {
+      return x.key;
     });
-
-    return map;
   }
 
-  function syncGroupState(groupWrap, boxesWrap) {
-    var boxes = Array.from(boxesWrap.querySelectorAll('.bod-option-box'));
+  function buildBoxesForSection(parts) {
+    var heading = parts.heading;
+    var swatchArea = parts.swatchArea;
+    var rowsWrap = parts.rowsWrap;
 
-    boxes.forEach(function (box) {
-      var inputId = box.getAttribute('data-input-id');
-      if (!inputId) return;
+    if (heading.dataset.bodOptionBoxesReady === '1') return;
 
-      var input = document.getElementById(inputId);
-      if (!input) return;
+    var inputs = getInputsFromRowsWrap(rowsWrap);
+    var swatches = getSwatchesFromArea(swatchArea);
 
-      if (input.checked) box.classList.add('is-selected');
-      else box.classList.remove('is-selected');
+    if (!inputs.length || !swatches.length) return;
+
+    var swatchMap = {};
+    swatches.forEach(function (s) {
+      swatchMap[s.key] = s;
     });
+
+    var matched = inputs.map(function (input) {
+      var labelText = getInputLabelText(input);
+      var swatch = swatchMap[labelText];
+      if (!swatch) return null;
+
+      return {
+        input: input,
+        labelText: labelText,
+        swatch: swatch
+      };
+    }).filter(Boolean);
+
+    if (!matched.length) return;
+
+    var boxesWrap = document.createElement('div');
+    boxesWrap.className = 'bod-option-boxes';
+    boxesWrap.setAttribute('data-heading-text', normalizeText(heading.textContent));
+
+    matched.forEach(function (item) {
+      var input = item.input;
+      var labelText = item.labelText;
+      var swatch = item.swatch;
+
+      var box = document.createElement('div');
+      box.className = 'bod-option-box';
+      box.setAttribute('data-input-id', input.id || '');
+      box.setAttribute('tabindex', '0');
+      box.setAttribute('role', 'button');
+      box.setAttribute('aria-label', labelText);
+
+      if (swatch.src) {
+        var img = document.createElement('img');
+        img.src = swatch.src;
+        img.alt = labelText;
+        box.appendChild(img);
+      }
+
+      var textEl = document.createElement('div');
+      textEl.className = 'bod-option-box-text';
+      textEl.textContent = titleCase(labelText);
+      box.appendChild(textEl);
+
+      function activate(currentInput) {
+        return function (evt) {
+          if (evt) evt.preventDefault();
+
+          if (currentInput.type === 'radio') {
+            Array.from(document.querySelectorAll('input[type="radio"][name="' + currentInput.name + '"]')).forEach(function (r) {
+              r.checked = false;
+            });
+            currentInput.checked = true;
+          } else {
+            currentInput.checked = !currentInput.checked;
+          }
+
+          currentInput.dispatchEvent(new Event('click', { bubbles: true }));
+          currentInput.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+      }
+
+      var handler = activate(input);
+
+      box.addEventListener('click', handler);
+      box.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') handler(e);
+      });
+
+      boxesWrap.appendChild(box);
+    });
+
+    swatchArea.classList.add('bod-option-hidden');
+    rowsWrap.classList.add('bod-option-hidden');
+    heading.insertAdjacentElement('afterend', boxesWrap);
+    heading.dataset.bodOptionBoxesReady = '1';
   }
 
   function syncOptionBoxesVisibility() {
@@ -319,100 +406,14 @@
     });
   }
 
-  function buildGroup(group) {
-    var groupWrap = group.wrap;
-
-    if (!groupWrap || groupWrap.dataset.bodOptionBoxesReady === '1') return;
-
-    var inputRows = getInputRows(groupWrap);
-    if (!inputRows.length) return;
-
-    var swatchMap = getSwatchMap(groupWrap);
-    if (!swatchMap.size) return;
-
-    var topSwatchArea = getTopSwatchArea(groupWrap);
-    var nativeRowsWrap = getNativeRowsWrap(groupWrap);
-
-    var matched = inputRows.filter(function (item) {
-      var value = item.input.getAttribute('data-doogma-value') || item.input.value;
-      return swatchMap.has(value);
-    });
-
-    if (!matched.length) return;
-
-    var boxesWrap = document.createElement('div');
-    boxesWrap.className = 'bod-option-boxes';
-
-    matched.forEach(function (item) {
-      var input = item.input;
-      var value = input.getAttribute('data-doogma-value') || input.value;
-      var swatch = swatchMap.get(value);
-      var text = getLabelTextForInput(input) || (swatch && swatch.alt) || value;
-
-      var box = document.createElement('div');
-      box.className = 'bod-option-box';
-      box.setAttribute('data-input-id', input.id || '');
-      box.setAttribute('data-doogma-value', value || '');
-      box.setAttribute('tabindex', '0');
-      box.setAttribute('role', 'button');
-      box.setAttribute('aria-label', text);
-
-      if (swatch && swatch.src) {
-        var img = document.createElement('img');
-        img.src = swatch.src;
-        img.alt = text;
-        box.appendChild(img);
-      }
-
-      var textEl = document.createElement('div');
-      textEl.className = 'bod-option-box-text';
-      textEl.textContent = text;
-      box.appendChild(textEl);
-
-      function activate(currentInput) {
-        return function (evt) {
-          if (evt) evt.preventDefault();
-
-          if (currentInput.type === 'radio') {
-            var radios = Array.from(groupWrap.querySelectorAll('input[type="radio"][name="' + currentInput.name + '"]'));
-            radios.forEach(function (r) {
-              r.checked = false;
-            });
-            currentInput.checked = true;
-          } else {
-            currentInput.checked = !currentInput.checked;
-          }
-
-          currentInput.dispatchEvent(new Event('click', { bubbles: true }));
-          currentInput.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-      }
-
-      var handler = activate(input);
-
-      box.addEventListener('click', handler);
-      box.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          handler(e);
-        }
-      });
-
-      boxesWrap.appendChild(box);
-    });
-
-    if (topSwatchArea) topSwatchArea.classList.add('bod-option-hidden');
-    if (nativeRowsWrap) nativeRowsWrap.classList.add('bod-option-hidden');
-
-    group.heading.insertAdjacentElement('afterend', boxesWrap);
-
-    syncGroupState(groupWrap, boxesWrap);
-    groupWrap.dataset.bodOptionBoxesReady = '1';
-  }
-
   function buildOptionBoxes() {
     injectStyles();
-    getGroups().forEach(buildGroup);
-    boxesBuilt = true;
+
+    getOptionSectionHeaders().forEach(function (heading) {
+      var parts = getSectionParts(heading);
+      if (parts) buildBoxesForSection(parts);
+    });
+
     syncOptionBoxesVisibility();
   }
 
@@ -447,9 +448,7 @@
         refreshCheckboxGroup(checkboxGroups[name], selectedIds);
       });
 
-      if (boxesBuilt) {
-        syncOptionBoxesVisibility();
-      }
+      syncOptionBoxesVisibility();
     } finally {
       isRefreshing = false;
     }
@@ -475,24 +474,14 @@
       OPTION_RULES = await res.json();
       bindEvents();
 
-      // rules first, immediately
       refreshAll();
-
-      // build boxes after rules have already hidden what needs hiding
+      setTimeout(refreshAll, 50);
       setTimeout(function () {
         buildOptionBoxes();
-        refreshAll();
-      }, 0);
-
-      // keep your original reload safety passes
-      setTimeout(function () {
-        refreshAll();
-      }, 300);
-
-      setTimeout(function () {
-        if (!boxesBuilt) buildOptionBoxes();
-        refreshAll();
-      }, 1000);
+        syncOptionBoxesVisibility();
+      }, 200);
+      setTimeout(refreshAll, 400);
+      setTimeout(syncOptionBoxesVisibility, 450);
 
       console.log('Volusion rules loaded', OPTION_RULES);
     } catch (err) {
@@ -508,8 +497,9 @@
 
   window.addEventListener('load', function () {
     setTimeout(function () {
-      if (!boxesBuilt) buildOptionBoxes();
       refreshAll();
-    }, 50);
+      buildOptionBoxes();
+      syncOptionBoxesVisibility();
+    }, 150);
   });
 })();
