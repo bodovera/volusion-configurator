@@ -3,6 +3,16 @@
   let OPTION_RULES = {};
   let isRefreshing = false;
 
+  function normalizeText(str) {
+    return String(str || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function titleCase(str) {
+    return String(str || '').replace(/\b\w/g, function (m) {
+      return m.toUpperCase();
+    });
+  }
+
   function getSelectedOptionIds() {
     const ids = [];
 
@@ -131,219 +141,154 @@
     }
   }
 
-  function injectStyles() {
-    if (document.getElementById('bod-option-box-styles')) return;
-
-    var css = `
-      .option-image-boxes-ready .swatchRowWrap {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 10px !important;
-        margin-top: 8px !important;
-        margin-bottom: 8px !important;
-      }
-
-      .option-image-boxes-ready .swatchWrapper {
-        display: inline-flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        width: 88px !important;
-        min-height: 96px !important;
-        padding: 8px 6px !important;
-        margin: 0 !important;
-        border: 2px solid #cfcfcf !important;
-        border-radius: 10px !important;
-        background: #fff !important;
-        cursor: pointer !important;
-        box-sizing: border-box !important;
-        text-align: center !important;
-      }
-
-      .option-image-boxes-ready .swatchWrapper:hover {
-        border-color: #666 !important;
-      }
-
-      .option-image-boxes-ready .swatchWrapper.selected,
-      .option-image-boxes-ready .swatchWrapper.active {
-        border-color: #5850ec !important;
-        box-shadow: 0 0 0 2px rgba(88, 80, 236, 0.14) !important;
-      }
-
-      .option-image-boxes-ready .swatchWrapper img {
-        max-width: 52px !important;
-        max-height: 52px !important;
-        width: auto !important;
-        height: auto !important;
-        display: block !important;
-        margin: 0 0 6px 0 !important;
-      }
-
-      .option-image-boxes-ready .option-box-text {
-        display: block !important;
-        font-size: 12px !important;
-        line-height: 1.2 !important;
-        color: #1f2937 !important;
-        white-space: normal !important;
-        text-align: center !important;
-      }
-
-      .bod-option-hidden {
-        display: none !important;
-      }
-    `;
-
-    var style = document.createElement('style');
-    style.id = 'bod-option-box-styles';
-    style.textContent = css;
-    document.head.appendChild(style);
+  function styleSwatchWrapper(sw) {
+    sw.style.display = 'inline-flex';
+    sw.style.flexDirection = 'column';
+    sw.style.alignItems = 'center';
+    sw.style.justifyContent = 'flex-start';
+    sw.style.width = '88px';
+    sw.style.minHeight = '96px';
+    sw.style.padding = '8px 6px';
+    sw.style.margin = '0';
+    sw.style.border = '2px solid #cfcfcf';
+    sw.style.borderRadius = '10px';
+    sw.style.background = '#fff';
+    sw.style.cursor = 'pointer';
+    sw.style.boxSizing = 'border-box';
+    sw.style.textAlign = 'center';
   }
 
-  function normalizeText(str) {
-    return String(str || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  function styleSwatchImage(img) {
+    img.style.maxWidth = '52px';
+    img.style.maxHeight = '52px';
+    img.style.width = 'auto';
+    img.style.height = 'auto';
+    img.style.display = 'block';
+    img.style.margin = '0 0 6px 0';
   }
 
-  function titleCase(str) {
-    return String(str || '').replace(/\b\w/g, function (m) {
-      return m.toUpperCase();
-    });
+  function getSwatchLabel(sw) {
+    const img = sw.querySelector('img');
+    return (
+      sw.getAttribute('data-doogma-value') ||
+      (img && (img.getAttribute('alt') || img.getAttribute('title'))) ||
+      ''
+    );
   }
 
-  function getOptionSectionHeaders() {
-    return Array.from(document.querySelectorAll('strong[role="heading"]')).filter(function (el) {
-      var txt = normalizeText(el.textContent);
-      return txt && txt !== 'choose your options:';
-    });
-  }
+  function buildNativeSwatchBoxes() {
+    const swatches = Array.from(document.querySelectorAll('.swatchWrapper[data-doogma-value]'));
+    if (!swatches.length) return;
 
-  function getSectionParts(heading) {
-    var parent = heading.parentElement;
-    if (!parent) return null;
+    swatches.forEach(function (sw) {
+      styleSwatchWrapper(sw);
 
-    var children = Array.from(parent.children);
-    var headingIndex = children.indexOf(heading);
-    if (headingIndex < 0) return null;
+      const img = sw.querySelector('img');
+      if (img) styleSwatchImage(img);
 
-    var swatchArea = null;
-    var rowsWrap = null;
-
-    for (var i = headingIndex + 1; i < children.length; i++) {
-      var el = children[i];
-
-      if (el.matches && el.matches('strong[role="heading"]')) break;
-
-      if (!swatchArea && el.querySelector && el.querySelector('.swatchWrapper[data-doogma-value] img')) {
-        swatchArea = el;
-        continue;
-      }
-
-      if (
-        !rowsWrap &&
-        el.querySelector &&
-        el.querySelector('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
-      ) {
-        rowsWrap = el;
-        continue;
-      }
-    }
-
-    if (!swatchArea) return null;
-
-    return {
-      heading: heading,
-      swatchArea: swatchArea,
-      rowsWrap: rowsWrap
-    };
-  }
-
-  function enhanceSwatchArea(parts) {
-    var heading = parts.heading;
-    var swatchArea = parts.swatchArea;
-    var rowsWrap = parts.rowsWrap;
-
-    if (!swatchArea || heading.dataset.bodOptionBoxesReady === '1') return;
-
-    swatchArea.classList.add('option-image-boxes-ready');
-
-    var firstWrap = swatchArea.querySelector('.flex.flex-wrap');
-    if (firstWrap) {
-      firstWrap.classList.add('swatchRowWrap');
-    }
-
-    Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
       if (!sw.querySelector('.option-box-text')) {
-        var text =
-          sw.getAttribute('data-doogma-value') ||
-          (sw.querySelector('img') && (sw.querySelector('img').getAttribute('alt') || sw.querySelector('img').getAttribute('title'))) ||
-          '';
-
-        var label = document.createElement('div');
+        const label = document.createElement('div');
         label.className = 'option-box-text';
-        label.textContent = titleCase(text);
+        label.textContent = titleCase(getSwatchLabel(sw));
+        label.style.display = 'block';
+        label.style.fontSize = '12px';
+        label.style.lineHeight = '1.2';
+        label.style.color = '#1f2937';
+        label.style.whiteSpace = 'normal';
+        label.style.textAlign = 'center';
         sw.appendChild(label);
       }
+
+      const cell = sw.parentElement;
+      if (cell) {
+        cell.style.paddingRight = '0';
+        cell.style.marginRight = '10px';
+        cell.style.marginBottom = '10px';
+      }
+
+      const row = sw.closest('.flex.flex-wrap');
+      if (row) {
+        row.style.display = 'flex';
+        row.style.flexWrap = 'wrap';
+        row.style.gap = '10px';
+        row.style.alignItems = 'flex-start';
+      }
     });
-
-    if (rowsWrap) {
-      rowsWrap.classList.add('bod-option-hidden');
-    }
-
-    heading.dataset.bodOptionBoxesReady = '1';
   }
 
-  function syncOptionBoxesVisibility() {
-    getOptionSectionHeaders().forEach(function (heading) {
-      var parts = getSectionParts(heading);
-      if (!parts || !parts.swatchArea) return;
+  function hideDuplicateInputRows() {
+    Array.from(document.querySelectorAll('strong[role="heading"]')).forEach(function (heading) {
+      const parent = heading.parentElement;
+      if (!parent) return;
 
-      var swatchArea = parts.swatchArea;
-      var rowsWrap = parts.rowsWrap;
+      const children = Array.from(parent.children);
+      const idx = children.indexOf(heading);
+      if (idx < 0) return;
 
-      if (!rowsWrap) return;
+      let swatchArea = null;
+      let rowsWrap = null;
 
-      var wrappers = Array.from(
-        rowsWrap.querySelectorAll('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
-      );
+      for (let i = idx + 1; i < children.length; i++) {
+        const el = children[i];
 
-      var anyVisible = wrappers.some(function (input) {
-        var wrap = getFieldWrapper(input);
-        return wrap && wrap.style.display !== 'none';
-      });
+        if (el.matches && el.matches('strong[role="heading"]')) break;
 
-      swatchArea.style.display = anyVisible ? '' : 'none';
-
-      Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
-        sw.classList.remove('selected');
-        sw.classList.remove('active');
-      });
-
-      Array.from(rowsWrap.querySelectorAll('input[type="radio"][name^="SELECT_"]:checked, input[type="checkbox"][name^="SELECT_"]:checked')).forEach(function (input) {
-        var label = '';
-        if (input.id) {
-          var lab = document.querySelector('label[for="' + input.id + '"]');
-          label = lab ? normalizeText(lab.textContent) : '';
+        if (!swatchArea && el.querySelector && el.querySelector('.swatchWrapper[data-doogma-value]')) {
+          swatchArea = el;
+          continue;
         }
 
-        Array.from(swatchArea.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
-          var key = normalizeText(sw.getAttribute('data-doogma-value'));
-          if (key && label && key === label) {
-            sw.classList.add('selected');
-            sw.classList.add('active');
-          }
-        });
+        if (
+          !rowsWrap &&
+          el.querySelector &&
+          el.querySelector('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
+        ) {
+          rowsWrap = el;
+          continue;
+        }
+      }
+
+      if (swatchArea && rowsWrap) {
+        rowsWrap.style.display = 'none';
+      }
+    });
+  }
+
+  function syncNativeSwatchSelection() {
+    Array.from(document.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
+      sw.classList.remove('selected');
+      sw.classList.remove('active');
+      sw.style.borderColor = '#cfcfcf';
+      sw.style.boxShadow = 'none';
+    });
+
+    Array.from(
+      document.querySelectorAll('input[type="radio"][name^="SELECT_"]:checked, input[type="checkbox"][name^="SELECT_"]:checked')
+    ).forEach(function (input) {
+      let labelText = '';
+      if (input.id) {
+        const label = document.querySelector('label[for="' + input.id + '"]');
+        labelText = label ? normalizeText(label.textContent) : '';
+      }
+
+      if (!labelText) return;
+
+      Array.from(document.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
+        const key = normalizeText(sw.getAttribute('data-doogma-value'));
+        if (key === labelText) {
+          sw.classList.add('selected');
+          sw.classList.add('active');
+          sw.style.borderColor = '#5850ec';
+          sw.style.boxShadow = '0 0 0 2px rgba(88, 80, 236, 0.14)';
+        }
       });
     });
   }
 
-  function buildOptionBoxes() {
-    injectStyles();
-
-    getOptionSectionHeaders().forEach(function (heading) {
-      var parts = getSectionParts(heading);
-      if (parts) enhanceSwatchArea(parts);
-    });
-
-    syncOptionBoxesVisibility();
+  function enhanceSwatches() {
+    buildNativeSwatchBoxes();
+    hideDuplicateInputRows();
+    syncNativeSwatchSelection();
   }
 
   function refreshAll() {
@@ -377,7 +322,7 @@
         refreshCheckboxGroup(checkboxGroups[name], selectedIds);
       });
 
-      syncOptionBoxesVisibility();
+      enhanceSwatches();
     } finally {
       isRefreshing = false;
     }
@@ -405,12 +350,8 @@
 
       refreshAll();
       setTimeout(refreshAll, 50);
-      setTimeout(function () {
-        buildOptionBoxes();
-        syncOptionBoxesVisibility();
-      }, 200);
-      setTimeout(refreshAll, 400);
-      setTimeout(syncOptionBoxesVisibility, 450);
+      setTimeout(refreshAll, 200);
+      setTimeout(refreshAll, 500);
 
       console.log('Volusion rules loaded', OPTION_RULES);
     } catch (err) {
@@ -425,10 +366,7 @@
   }
 
   window.addEventListener('load', function () {
-    setTimeout(function () {
-      refreshAll();
-      buildOptionBoxes();
-      syncOptionBoxesVisibility();
-    }, 150);
+    setTimeout(refreshAll, 100);
+    setTimeout(refreshAll, 300);
   });
 })();
