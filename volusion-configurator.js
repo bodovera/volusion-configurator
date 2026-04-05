@@ -1,7 +1,8 @@
 (function () {
-  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=1';
+  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=2';
   let OPTION_RULES = {};
   let isRefreshing = false;
+  let swatchObserverStarted = false;
 
   function normalizeText(str) {
     return String(str || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -141,33 +142,82 @@
     }
   }
 
-  function styleSwatchWrapper(sw) {
-    sw.style.display = 'inline-flex';
-    sw.style.flexDirection = 'column';
-    sw.style.alignItems = 'center';
-    sw.style.justifyContent = 'flex-start';
-    sw.style.width = '88px';
-    sw.style.minHeight = '96px';
-    sw.style.padding = '8px 6px';
-    sw.style.margin = '0';
-    sw.style.border = '2px solid #cfcfcf';
-    sw.style.borderRadius = '10px';
-    sw.style.background = '#fff';
-    sw.style.cursor = 'pointer';
-    sw.style.boxSizing = 'border-box';
-    sw.style.textAlign = 'center';
+  function injectSwatchStyles() {
+    if (document.getElementById('bod-swatch-box-styles')) return;
+
+    var css = `
+      .bod-swatch-enhanced-row {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+      }
+
+      .bod-swatch-enhanced-cell {
+        padding-right: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 0 !important;
+      }
+
+      .bod-swatch-enhanced {
+        display: inline-flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 88px !important;
+        min-height: 96px !important;
+        padding: 8px 6px !important;
+        margin: 0 !important;
+        border: 2px solid #cfcfcf !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        cursor: pointer !important;
+        box-sizing: border-box !important;
+        text-align: center !important;
+      }
+
+      .bod-swatch-enhanced:hover {
+        border-color: #666 !important;
+      }
+
+      .bod-swatch-enhanced img {
+        max-width: 52px !important;
+        max-height: 52px !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
+        margin: 0 0 6px 0 !important;
+        border-style: none !important;
+      }
+
+      .bod-swatch-label {
+        display: block !important;
+        font-size: 12px !important;
+        line-height: 1.2 !important;
+        color: #1f2937 !important;
+        white-space: normal !important;
+        text-align: center !important;
+      }
+
+      .bod-swatch-enhanced.bod-swatch-selected,
+      .bod-swatch-enhanced.active,
+      .bod-swatch-enhanced.selected {
+        border-color: #5850ec !important;
+        box-shadow: 0 0 0 2px rgba(88, 80, 236, 0.14) !important;
+      }
+
+      .bod-option-hidden {
+        display: none !important;
+      }
+    `;
+
+    var style = document.createElement('style');
+    style.id = 'bod-swatch-box-styles';
+    style.textContent = css;
+    document.head.appendChild(style);
   }
 
-  function styleSwatchImage(img) {
-    img.style.maxWidth = '52px';
-    img.style.maxHeight = '52px';
-    img.style.width = 'auto';
-    img.style.height = 'auto';
-    img.style.display = 'block';
-    img.style.margin = '0 0 6px 0';
-  }
-
-  function getSwatchLabel(sw) {
+  function getSwatchValue(sw) {
     const img = sw.querySelector('img');
     return (
       sw.getAttribute('data-doogma-value') ||
@@ -176,64 +226,58 @@
     );
   }
 
-  function buildNativeSwatchBoxes() {
-    const swatches = Array.from(document.querySelectorAll('.swatchWrapper[data-doogma-value]'));
+  function enhanceAllSwatches() {
+    injectSwatchStyles();
+
+    var swatches = Array.from(document.querySelectorAll('[data-doogma-value].swatchWrapper'));
     if (!swatches.length) return;
 
     swatches.forEach(function (sw) {
-      styleSwatchWrapper(sw);
+      sw.classList.add('bod-swatch-enhanced');
 
-      const img = sw.querySelector('img');
-      if (img) styleSwatchImage(img);
-
-      if (!sw.querySelector('.option-box-text')) {
-        const label = document.createElement('div');
-        label.className = 'option-box-text';
-        label.textContent = titleCase(getSwatchLabel(sw));
-        label.style.display = 'block';
-        label.style.fontSize = '12px';
-        label.style.lineHeight = '1.2';
-        label.style.color = '#1f2937';
-        label.style.whiteSpace = 'normal';
-        label.style.textAlign = 'center';
-        sw.appendChild(label);
+      var img = sw.querySelector('img');
+      if (img) {
+        img.removeAttribute('width');
+        img.removeAttribute('height');
       }
 
-      const cell = sw.parentElement;
+      var cell = sw.parentElement;
       if (cell) {
-        cell.style.paddingRight = '0';
-        cell.style.marginRight = '10px';
-        cell.style.marginBottom = '10px';
+        cell.classList.add('bod-swatch-enhanced-cell');
       }
 
-      const row = sw.closest('.flex.flex-wrap');
+      var row = sw.closest('.flex.flex-wrap');
       if (row) {
-        row.style.display = 'flex';
-        row.style.flexWrap = 'wrap';
-        row.style.gap = '10px';
-        row.style.alignItems = 'flex-start';
+        row.classList.add('bod-swatch-enhanced-row');
+      }
+
+      if (!sw.querySelector('.bod-swatch-label')) {
+        var label = document.createElement('div');
+        label.className = 'bod-swatch-label';
+        label.textContent = titleCase(getSwatchValue(sw));
+        sw.appendChild(label);
       }
     });
   }
 
-  function hideDuplicateInputRows() {
+  function hideDuplicateInputRowsForSwatches() {
     Array.from(document.querySelectorAll('strong[role="heading"]')).forEach(function (heading) {
-      const parent = heading.parentElement;
+      var parent = heading.parentElement;
       if (!parent) return;
 
-      const children = Array.from(parent.children);
-      const idx = children.indexOf(heading);
+      var children = Array.from(parent.children);
+      var idx = children.indexOf(heading);
       if (idx < 0) return;
 
-      let swatchArea = null;
-      let rowsWrap = null;
+      var swatchArea = null;
+      var rowsWrap = null;
 
-      for (let i = idx + 1; i < children.length; i++) {
-        const el = children[i];
+      for (var i = idx + 1; i < children.length; i++) {
+        var el = children[i];
 
         if (el.matches && el.matches('strong[role="heading"]')) break;
 
-        if (!swatchArea && el.querySelector && el.querySelector('.swatchWrapper[data-doogma-value]')) {
+        if (!swatchArea && el.querySelector && el.querySelector('[data-doogma-value].swatchWrapper')) {
           swatchArea = el;
           continue;
         }
@@ -249,46 +293,60 @@
       }
 
       if (swatchArea && rowsWrap) {
-        rowsWrap.style.display = 'none';
+        rowsWrap.classList.add('bod-option-hidden');
       }
     });
   }
 
-  function syncNativeSwatchSelection() {
-    Array.from(document.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
+  function syncSwatchSelectionFromInputs() {
+    Array.from(document.querySelectorAll('[data-doogma-value].swatchWrapper')).forEach(function (sw) {
+      sw.classList.remove('bod-swatch-selected');
       sw.classList.remove('selected');
       sw.classList.remove('active');
-      sw.style.borderColor = '#cfcfcf';
-      sw.style.boxShadow = 'none';
     });
 
     Array.from(
       document.querySelectorAll('input[type="radio"][name^="SELECT_"]:checked, input[type="checkbox"][name^="SELECT_"]:checked')
     ).forEach(function (input) {
-      let labelText = '';
+      var labelText = '';
       if (input.id) {
-        const label = document.querySelector('label[for="' + input.id + '"]');
+        var label = document.querySelector('label[for="' + input.id + '"]');
         labelText = label ? normalizeText(label.textContent) : '';
       }
 
       if (!labelText) return;
 
-      Array.from(document.querySelectorAll('.swatchWrapper[data-doogma-value]')).forEach(function (sw) {
-        const key = normalizeText(sw.getAttribute('data-doogma-value'));
-        if (key === labelText) {
+      Array.from(document.querySelectorAll('[data-doogma-value].swatchWrapper')).forEach(function (sw) {
+        var swatchText = normalizeText(sw.getAttribute('data-doogma-value'));
+        if (swatchText && swatchText === labelText) {
+          sw.classList.add('bod-swatch-selected');
           sw.classList.add('selected');
           sw.classList.add('active');
-          sw.style.borderColor = '#5850ec';
-          sw.style.boxShadow = '0 0 0 2px rgba(88, 80, 236, 0.14)';
         }
       });
     });
   }
 
   function enhanceSwatches() {
-    buildNativeSwatchBoxes();
-    hideDuplicateInputRows();
-    syncNativeSwatchSelection();
+    enhanceAllSwatches();
+    hideDuplicateInputRowsForSwatches();
+    syncSwatchSelectionFromInputs();
+  }
+
+  function startSwatchObserver() {
+    if (swatchObserverStarted) return;
+    swatchObserverStarted = true;
+
+    var observer = new MutationObserver(function () {
+      enhanceSwatches();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
   }
 
   function refreshAll() {
@@ -347,11 +405,13 @@
 
       OPTION_RULES = await res.json();
       bindEvents();
+      startSwatchObserver();
 
       refreshAll();
       setTimeout(refreshAll, 50);
-      setTimeout(refreshAll, 200);
-      setTimeout(refreshAll, 500);
+      setTimeout(refreshAll, 250);
+      setTimeout(refreshAll, 750);
+      setTimeout(refreshAll, 1500);
 
       console.log('Volusion rules loaded', OPTION_RULES);
     } catch (err) {
@@ -367,6 +427,7 @@
 
   window.addEventListener('load', function () {
     setTimeout(refreshAll, 100);
-    setTimeout(refreshAll, 300);
+    setTimeout(refreshAll, 500);
+    setTimeout(refreshAll, 1200);
   });
 })();
