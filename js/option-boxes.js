@@ -9,7 +9,7 @@
 
   function getOptionGroups() {
     return Array.from(document.querySelectorAll("strong[role='heading']"))
-      .map((heading) => heading.parentElement)
+      .map(function (heading) { return heading.parentElement; })
       .filter(Boolean);
   }
 
@@ -25,11 +25,9 @@
 
   function getLabelText(input) {
     if (!input || !input.id) return "";
-    const label = document.querySelector(`label[for="${input.id}"]`);
+    var label = document.querySelector('label[for="' + input.id + '"]');
     if (!label) return "";
-
-    const text = (label.textContent || "").replace(/\s+/g, " ").trim();
-    return text;
+    return (label.textContent || "").replace(/\s+/g, " ").trim();
   }
 
   function getNativeRow(input) {
@@ -40,7 +38,7 @@
   function ensureTextNodeInSwatch(swatch, text) {
     if (!swatch) return;
 
-    let textEl = swatch.querySelector(".option-box-text");
+    var textEl = swatch.querySelector(".option-box-text");
 
     if (!textEl) {
       textEl = document.createElement("div");
@@ -52,14 +50,14 @@
   }
 
   function syncVisualState(group) {
-    const swatches = getSwatchesForGroup(group);
+    var swatches = getSwatchesForGroup(group);
 
-    swatches.forEach((swatch) => {
-      const value = swatch.getAttribute("data-doogma-value");
+    swatches.forEach(function (swatch) {
+      var value = swatch.getAttribute("data-doogma-value");
       if (!value) return;
 
-      const input = group.querySelector(
-        `input[type="radio"][data-doogma-value="${value}"], input[type="checkbox"][data-doogma-value="${value}"]`
+      var input = group.querySelector(
+        'input[type="radio"][data-doogma-value="' + value + '"], input[type="checkbox"][data-doogma-value="' + value + '"]'
       );
 
       if (!input) return;
@@ -76,19 +74,17 @@
     swatch.setAttribute("tabindex", "0");
     swatch.setAttribute("role", "button");
 
-    const nativeRow = getNativeRow(input);
+    var nativeRow = getNativeRow(input);
     if (nativeRow) nativeRow.style.display = "none";
 
-    const labelText = getLabelText(input);
+    var labelText = getLabelText(input);
     ensureTextNodeInSwatch(swatch, labelText);
 
     function activate() {
       if (input.type === "radio") {
-        const relatedInputs = Array.from(
-          group.querySelectorAll(`input[type="radio"][name="${CSS.escape(input.name)}"]`)
-        );
-        relatedInputs.forEach((related) => {
-          related.checked = false;
+        var relatedInputs = Array.from(group.querySelectorAll('input[type="radio"]'));
+        relatedInputs.forEach(function (related) {
+          if (related.name === input.name) related.checked = false;
         });
         input.checked = true;
       } else {
@@ -118,24 +114,25 @@
   }
 
   function upgradeGroup(group) {
-    const inputs = getInputsForGroup(group);
-    const swatches = getSwatchesForGroup(group);
+    var inputs = getInputsForGroup(group);
+    var swatches = getSwatchesForGroup(group);
 
     if (!inputs.length || !swatches.length) return;
 
-    const inputMap = new Map();
-    inputs.forEach((input) => {
-      const value = input.getAttribute("data-doogma-value");
+    var inputMap = new Map();
+
+    inputs.forEach(function (input) {
+      var value = input.getAttribute("data-doogma-value");
       if (value) inputMap.set(value, input);
     });
 
-    let matched = 0;
+    var matched = 0;
 
-    swatches.forEach((swatch) => {
-      const value = swatch.getAttribute("data-doogma-value");
+    swatches.forEach(function (swatch) {
+      var value = swatch.getAttribute("data-doogma-value");
       if (!value) return;
 
-      const input = inputMap.get(value);
+      var input = inputMap.get(value);
       if (!input) return;
 
       bindSwatch(group, swatch, input);
@@ -150,7 +147,7 @@
   }
 
   function init() {
-    const groups = getOptionGroups();
+    var groups = getOptionGroups();
     groups.forEach(upgradeGroup);
     log("Option image boxes initialized");
   }
