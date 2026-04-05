@@ -1,5 +1,5 @@
 (function () {
-  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=2';
+  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=3';
   let OPTION_RULES = {};
   let isRefreshing = false;
   let swatchObserverStarted = false;
@@ -12,6 +12,12 @@
     return String(str || '').replace(/\b\w/g, function (m) {
       return m.toUpperCase();
     });
+  }
+
+  function hide(el) {
+    if (!el) return;
+    el.style.display = 'none';
+    el.setAttribute('aria-hidden', 'true');
   }
 
   function getSelectedOptionIds() {
@@ -327,6 +333,51 @@
     });
   }
 
+  function hideProductCode() {
+    document.querySelectorAll('[data-product-code]').forEach(function (el) {
+      hide(el);
+    });
+
+    document.querySelectorAll('strong, div, p, span, label').forEach(function (el) {
+      const txt = String(el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
+
+      if (
+        txt === 'PRODUCTCODE:' ||
+        txt === 'PRODUCT CODE:' ||
+        txt === 'PRODUCTCODE' ||
+        txt === 'PRODUCT CODE'
+      ) {
+        const wrap =
+          el.closest('.flex.flex-wrap') ||
+          el.closest('.w-100') ||
+          el.parentElement ||
+          el;
+
+        hide(wrap);
+      }
+    });
+  }
+
+  function cleanProductPriceName() {
+    document.querySelectorAll('.ProductPrice_Name, #ProductPrice_Name').forEach(function (el) {
+      const txt = String(el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!txt) return;
+
+      if (
+        /starting at/i.test(txt) ||
+        /productprice_name/i.test(txt) ||
+        /\d+\s*x\s*\d+/i.test(txt)
+      ) {
+        el.textContent = 'Product Price';
+      }
+    });
+  }
+
+  function runProductCleanup() {
+    hideProductCode();
+    cleanProductPriceName();
+  }
+
   function enhanceSwatches() {
     enhanceAllSwatches();
     hideDuplicateInputRowsForSwatches();
@@ -339,6 +390,7 @@
 
     var observer = new MutationObserver(function () {
       enhanceSwatches();
+      runProductCleanup();
     });
 
     observer.observe(document.body, {
@@ -381,6 +433,7 @@
       });
 
       enhanceSwatches();
+      runProductCleanup();
     } finally {
       isRefreshing = false;
     }
