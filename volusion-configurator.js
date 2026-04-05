@@ -1,8 +1,7 @@
 (function () {
-  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=3';
+  const RULES_URL = 'https://bodovera.github.io/volusion-configurator/volusion-option-rules.json?v=4';
   let OPTION_RULES = {};
   let isRefreshing = false;
-  let swatchObserverStarted = false;
 
   function normalizeText(str) {
     return String(str || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -149,23 +148,10 @@
   }
 
   function injectSwatchStyles() {
-    if (document.getElementById('bod-swatch-box-styles')) return;
+    if (document.getElementById('bod-native-swatch-box-styles')) return;
 
-    var css = `
-      .bod-swatch-enhanced-row {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        align-items: flex-start !important;
-        gap: 10px !important;
-      }
-
-      .bod-swatch-enhanced-cell {
-        padding-right: 0 !important;
-        margin-right: 0 !important;
-        margin-bottom: 0 !important;
-      }
-
-      .bod-swatch-enhanced {
+    const css = `
+      .swatchWrapper[data-doogma-value] {
         display: inline-flex !important;
         flex-direction: column !important;
         align-items: center !important;
@@ -182,21 +168,27 @@
         text-align: center !important;
       }
 
-      .bod-swatch-enhanced:hover {
+      .swatchWrapper[data-doogma-value]:hover {
         border-color: #666 !important;
       }
 
-      .bod-swatch-enhanced img {
+      .swatchWrapper[data-doogma-value].selected,
+      .swatchWrapper[data-doogma-value].active,
+      .swatchWrapper[data-doogma-value].bod-swatch-selected {
+        border-color: #5850ec !important;
+        box-shadow: 0 0 0 2px rgba(88, 80, 236, 0.14) !important;
+      }
+
+      .swatchWrapper[data-doogma-value] img {
         max-width: 52px !important;
         max-height: 52px !important;
         width: auto !important;
         height: auto !important;
         display: block !important;
         margin: 0 0 6px 0 !important;
-        border-style: none !important;
       }
 
-      .bod-swatch-label {
+      .swatchWrapper[data-doogma-value] .bod-swatch-label {
         display: block !important;
         font-size: 12px !important;
         line-height: 1.2 !important;
@@ -205,129 +197,74 @@
         text-align: center !important;
       }
 
-      .bod-swatch-enhanced.bod-swatch-selected,
-      .bod-swatch-enhanced.active,
-      .bod-swatch-enhanced.selected {
-        border-color: #5850ec !important;
-        box-shadow: 0 0 0 2px rgba(88, 80, 236, 0.14) !important;
-      }
-
-      .bod-option-hidden {
+      .swatchWrapper[data-doogma-value].bod-swatch-hidden {
         display: none !important;
       }
     `;
 
-    var style = document.createElement('style');
-    style.id = 'bod-swatch-box-styles';
+    const style = document.createElement('style');
+    style.id = 'bod-native-swatch-box-styles';
     style.textContent = css;
     document.head.appendChild(style);
   }
 
-  function getSwatchValue(sw) {
-    const img = sw.querySelector('img');
-    return (
-      sw.getAttribute('data-doogma-value') ||
-      (img && (img.getAttribute('alt') || img.getAttribute('title'))) ||
-      ''
-    );
-  }
-
-  function enhanceAllSwatches() {
+  function enhanceNativeSwatches() {
     injectSwatchStyles();
 
-    var swatches = Array.from(document.querySelectorAll('[data-doogma-value].swatchWrapper'));
-    if (!swatches.length) return;
+    document.querySelectorAll('.swatchWrapper[data-doogma-value]').forEach(function (sw) {
+      const value = sw.getAttribute('data-doogma-value') || '';
+      const img = sw.querySelector('img');
 
-    swatches.forEach(function (sw) {
-      sw.classList.add('bod-swatch-enhanced');
-
-      var img = sw.querySelector('img');
       if (img) {
         img.removeAttribute('width');
         img.removeAttribute('height');
       }
 
-      var cell = sw.parentElement;
-      if (cell) {
-        cell.classList.add('bod-swatch-enhanced-cell');
-      }
-
-      var row = sw.closest('.flex.flex-wrap');
-      if (row) {
-        row.classList.add('bod-swatch-enhanced-row');
-      }
-
       if (!sw.querySelector('.bod-swatch-label')) {
-        var label = document.createElement('div');
+        const label = document.createElement('div');
         label.className = 'bod-swatch-label';
-        label.textContent = titleCase(getSwatchValue(sw));
+        label.textContent = titleCase(value);
         sw.appendChild(label);
       }
-    });
-  }
 
-  function hideDuplicateInputRowsForSwatches() {
-    Array.from(document.querySelectorAll('strong[role="heading"]')).forEach(function (heading) {
-      var parent = heading.parentElement;
-      if (!parent) return;
-
-      var children = Array.from(parent.children);
-      var idx = children.indexOf(heading);
-      if (idx < 0) return;
-
-      var swatchArea = null;
-      var rowsWrap = null;
-
-      for (var i = idx + 1; i < children.length; i++) {
-        var el = children[i];
-
-        if (el.matches && el.matches('strong[role="heading"]')) break;
-
-        if (!swatchArea && el.querySelector && el.querySelector('[data-doogma-value].swatchWrapper')) {
-          swatchArea = el;
-          continue;
-        }
-
-        if (
-          !rowsWrap &&
-          el.querySelector &&
-          el.querySelector('input[type="radio"][name^="SELECT_"], input[type="checkbox"][name^="SELECT_"]')
-        ) {
-          rowsWrap = el;
-          continue;
-        }
+      const cell = sw.parentElement;
+      if (cell) {
+        cell.style.marginRight = '10px';
+        cell.style.marginBottom = '10px';
+        cell.style.paddingRight = '0';
       }
 
-      if (swatchArea && rowsWrap) {
-        rowsWrap.classList.add('bod-option-hidden');
+      const row = sw.closest('.flex.flex-wrap');
+      if (row) {
+        row.style.display = 'flex';
+        row.style.flexWrap = 'wrap';
+        row.style.alignItems = 'flex-start';
+        row.style.gap = '10px';
       }
     });
   }
 
   function syncSwatchSelectionFromInputs() {
-    Array.from(document.querySelectorAll('[data-doogma-value].swatchWrapper')).forEach(function (sw) {
+    document.querySelectorAll('.swatchWrapper[data-doogma-value]').forEach(function (sw) {
       sw.classList.remove('bod-swatch-selected');
-      sw.classList.remove('selected');
-      sw.classList.remove('active');
     });
 
-    Array.from(
-      document.querySelectorAll('input[type="radio"][name^="SELECT_"]:checked, input[type="checkbox"][name^="SELECT_"]:checked')
+    document.querySelectorAll(
+      'input[type="radio"][name^="SELECT_"]:checked, input[type="checkbox"][name^="SELECT_"]:checked'
     ).forEach(function (input) {
-      var labelText = '';
+      let labelText = '';
+
       if (input.id) {
-        var label = document.querySelector('label[for="' + input.id + '"]');
+        const label = document.querySelector('label[for="' + input.id + '"]');
         labelText = label ? normalizeText(label.textContent) : '';
       }
 
       if (!labelText) return;
 
-      Array.from(document.querySelectorAll('[data-doogma-value].swatchWrapper')).forEach(function (sw) {
-        var swatchText = normalizeText(sw.getAttribute('data-doogma-value'));
-        if (swatchText && swatchText === labelText) {
+      document.querySelectorAll('.swatchWrapper[data-doogma-value]').forEach(function (sw) {
+        const swatchText = normalizeText(sw.getAttribute('data-doogma-value'));
+        if (swatchText === labelText) {
           sw.classList.add('bod-swatch-selected');
-          sw.classList.add('selected');
-          sw.classList.add('active');
         }
       });
     });
@@ -336,25 +273,6 @@
   function hideProductCode() {
     document.querySelectorAll('[data-product-code]').forEach(function (el) {
       hide(el);
-    });
-
-    document.querySelectorAll('strong, div, p, span, label').forEach(function (el) {
-      const txt = String(el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
-
-      if (
-        txt === 'PRODUCTCODE:' ||
-        txt === 'PRODUCT CODE:' ||
-        txt === 'PRODUCTCODE' ||
-        txt === 'PRODUCT CODE'
-      ) {
-        const wrap =
-          el.closest('.flex.flex-wrap') ||
-          el.closest('.w-100') ||
-          el.parentElement ||
-          el;
-
-        hide(wrap);
-      }
     });
   }
 
@@ -376,29 +294,6 @@
   function runProductCleanup() {
     hideProductCode();
     cleanProductPriceName();
-  }
-
-  function enhanceSwatches() {
-    enhanceAllSwatches();
-    hideDuplicateInputRowsForSwatches();
-    syncSwatchSelectionFromInputs();
-  }
-
-  function startSwatchObserver() {
-    if (swatchObserverStarted) return;
-    swatchObserverStarted = true;
-
-    var observer = new MutationObserver(function () {
-      enhanceSwatches();
-      runProductCleanup();
-    });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style']
-    });
   }
 
   function refreshAll() {
@@ -432,7 +327,8 @@
         refreshCheckboxGroup(checkboxGroups[name], selectedIds);
       });
 
-      enhanceSwatches();
+      enhanceNativeSwatches();
+      syncSwatchSelectionFromInputs();
       runProductCleanup();
     } finally {
       isRefreshing = false;
@@ -458,12 +354,11 @@
 
       OPTION_RULES = await res.json();
       bindEvents();
-      startSwatchObserver();
 
       refreshAll();
-      setTimeout(refreshAll, 50);
-      setTimeout(refreshAll, 250);
-      setTimeout(refreshAll, 750);
+      setTimeout(refreshAll, 100);
+      setTimeout(refreshAll, 400);
+      setTimeout(refreshAll, 900);
       setTimeout(refreshAll, 1500);
 
       console.log('Volusion rules loaded', OPTION_RULES);
@@ -479,8 +374,7 @@
   }
 
   window.addEventListener('load', function () {
-    setTimeout(refreshAll, 100);
-    setTimeout(refreshAll, 500);
-    setTimeout(refreshAll, 1200);
+    setTimeout(refreshAll, 150);
+    setTimeout(refreshAll, 700);
   });
 })();
