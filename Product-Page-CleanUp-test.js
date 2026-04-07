@@ -61,12 +61,29 @@
     });
   }
 
+  function upgradeSwatchImage(img) {
+    if (!img || img.dataset.cleanupUpgraded === "1") return;
+
+    const betterSrc =
+      img.getAttribute("data-src") ||
+      img.dataset.src ||
+      "";
+
+    if (betterSrc) {
+      img.src = betterSrc;
+      img.dataset.cleanupUpgraded = "1";
+      log("Upgraded swatch image src", betterSrc);
+    }
+  }
+
   function resizeSwatches() {
     const wrappers = document.querySelectorAll('[class*="swatchWrapper"]');
 
     wrappers.forEach((wrap) => {
       const img = wrap.querySelector("img");
       if (!img) return;
+
+      upgradeSwatchImage(img);
 
       wrap.style.width = SWATCH_WIDTH + "px";
       wrap.style.minWidth = SWATCH_WIDTH + "px";
@@ -87,7 +104,7 @@
       img.style.display = "block";
       img.style.objectFit = "contain";
 
-      log("Resized swatch to 200px", wrap);
+      log("Resized swatch", wrap);
     });
   }
 
