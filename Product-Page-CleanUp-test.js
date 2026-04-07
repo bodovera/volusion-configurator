@@ -5,7 +5,7 @@
   const SWATCH_WIDTH = 200;
 
   function log(...args) {
-    if (DEBUG) console.log("[CleanUp]", ...args);
+    if (DEBUG) console.log("[CleanUpTest]", ...args);
   }
 
   function hide(el) {
@@ -33,7 +33,11 @@
     });
 
     document.querySelectorAll("select").forEach((select) => {
-      const optionText = Array.from(select.options).map(o => o.textContent || "").join(" ").toUpperCase();
+      const optionText = Array.from(select.options)
+        .map((o) => o.textContent || "")
+        .join(" ")
+        .toUpperCase();
+
       if (optionText.includes("CALCULATED PRICE")) {
         const wrap =
           select.closest(".flex.flex-wrap") ||
@@ -57,22 +61,46 @@
         /\d+\s*x\s*\d+/i.test(txt)
       ) {
         el.textContent = "Product Price";
+        log("Cleaned ProductPrice_Name label");
       }
     });
+  }
+
+  function forceBetterCloudinarySrc(url) {
+    if (!url) return url;
+
+    let cleaned = url;
+
+    cleaned = cleaned.replace(/\/c_limit[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/w_\d+,h_\d+[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/w_\d+[^/]*,h_\d+[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/h_\d+[^/]*,w_\d+[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/q_auto[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/f_auto[^/]*\//i, "/");
+
+    cleaned = cleaned.replace(/\/{2,}/g, "/");
+    cleaned = cleaned.replace(/^https:\//i, "https://");
+
+    return cleaned;
   }
 
   function upgradeSwatchImage(img) {
     if (!img || img.dataset.cleanupUpgraded === "1") return;
 
-    const betterSrc =
+    const original =
       img.getAttribute("data-src") ||
       img.dataset.src ||
+      img.getAttribute("src") ||
       "";
 
-    if (betterSrc) {
-      img.src = betterSrc;
+    if (!original) return;
+
+    const better = forceBetterCloudinarySrc(original);
+
+    if (better) {
+      img.src = better;
       img.dataset.cleanupUpgraded = "1";
-      log("Upgraded swatch image src", betterSrc);
+      log("Forced better swatch image", { original, better });
     }
   }
 
@@ -118,7 +146,10 @@
   function init() {
     run();
 
-    const observer = new MutationObserver(() => run());
+    const observer = new MutationObserver(() => {
+      run();
+    });
+
     observer.observe(document.body, {
       childList: true,
       subtree: true
