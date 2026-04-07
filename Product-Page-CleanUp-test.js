@@ -5,28 +5,18 @@
   const DEBUG = true;
 
   function log() {
-    if (DEBUG) console.log("[OptionsUI]", ...arguments);
+    if (DEBUG) console.log("[SwatchFix]", ...arguments);
   }
 
-  function isProductPage() {
-    return /\/product-p\//i.test(window.location.pathname);
-  }
-
-  function hide(el) {
-    if (!el) return;
-    el.style.display = "none";
-    el.setAttribute("aria-hidden", "true");
-  }
-
-  // =========================
-  // SWATCH IMAGE FIX
-  // =========================
   function fixImage(img) {
     if (!img) return;
 
     let src = img.getAttribute("src") || "";
+
+    // only touch option images
     if (!src.includes("cloudinary") || !src.includes("photos/options")) return;
 
+    // upscale image (remove 30px constraint)
     src = src.replace(/w_30,/g, `w_${SWATCH_WIDTH},`);
     src = src.replace(/h_30,/g, "");
 
@@ -34,20 +24,25 @@
       img.src = src;
     }
 
+    // REMOVE ALL FORCED SHAPING
     img.removeAttribute("width");
     img.removeAttribute("height");
 
     img.style.width = SWATCH_WIDTH + "px";
-    img.style.height = "auto";
+    img.style.height = "auto"; // <-- THIS is key (natural ratio)
     img.style.maxWidth = "none";
-    img.style.objectFit = "unset";
-    img.style.display = "block";
+
+    // kill ALL rounding / masking
     img.style.borderRadius = "0";
     img.style.clipPath = "none";
     img.style.webkitClipPath = "none";
     img.style.mask = "none";
     img.style.webkitMask = "none";
-    img.style.overflow = "visible";
+
+    // ensure no cropping
+    img.style.objectFit = "unset";
+
+    log("Image set to natural shape:", src);
   }
 
   function fixWrapper(wrap) {
@@ -56,16 +51,15 @@
     wrap.style.width = SWATCH_WIDTH + "px";
     wrap.style.flex = "0 0 " + SWATCH_WIDTH + "px";
     wrap.style.padding = "0";
-    wrap.style.display = "inline-block";
+
+    // REMOVE any circular container styling
     wrap.style.borderRadius = "0";
     wrap.style.clipPath = "none";
     wrap.style.webkitClipPath = "none";
-    wrap.style.mask = "none";
-    wrap.style.webkitMask = "none";
     wrap.style.overflow = "visible";
   }
 
-  function fixSwatches() {
+  function run() {
     const images = document.querySelectorAll(
       '[data-smartmatchids] img[src*="photos/options"]'
     );
@@ -76,6 +70,7 @@
       fixImage(img);
       fixWrapper(wrap);
 
+      // sometimes volusion wraps twice
       if (wrap && wrap.parentElement) {
         wrap.parentElement.style.borderRadius = "0";
         wrap.parentElement.style.clipPath = "none";
@@ -85,83 +80,11 @@
     });
   }
 
-  // =========================
-  // CLEANUP
-  // =========================
-  function hideProductCode() {
-    document.querySelectorAll("[data-product-code]").forEach((el) => {
-      hide(el);
-      log("Hid product code", el);
-    });
-  }
-
-  function cleanPriceLabel() {
-    document.querySelectorAll(".ProductPrice_Name, #ProductPrice_Name").forEach((el) => {
-      const txt = (el.textContent || "").trim();
-      if (!txt) return;
-
-      if (
-        txt.includes("starting at") ||
-        txt.includes("ProductPrice_Name") ||
-        /\d+\s*x\s*\d+/i.test(txt)
-      ) {
-        el.textContent = "Product Price";
-        log("Updated ProductPrice_Name label", el);
-      }
-    });
-  }
-
-  function fixBasePriceLabel() {
-    document.querySelectorAll("[data-product-base-price]").forEach((el) => {
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
-      if (!txt) return;
-
-      if (/starting at/i.test(txt)) {
-        const priceMatch = txt.match(/\$\s*[\d,]+(?:\.\d{2})?/);
-        const pricePart = priceMatch ? priceMatch[0].replace(/\s+/g, "") : "";
-        el.textContent = pricePart ? `Product Price: ${pricePart}` : "Product Price";
-        log("Updated base price label", el);
-      }
-    });
-  }
-
-  function fixVisibleStartingAtText() {
-    document.querySelectorAll("div, span, p, strong, label").forEach((el) => {
-      if (el.children.length > 0) return;
-
-      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
-      if (!txt) return;
-
-      if (/^starting at\s*:/i.test(txt)) {
-        const priceMatch = txt.match(/\$\s*[\d,]+(?:\.\d{2})?/);
-        const pricePart = priceMatch ? priceMatch[0].replace(/\s+/g, "") : "";
-        el.textContent = pricePart ? `Product Price: ${pricePart}` : "Product Price";
-        log("Updated visible Starting at text", el);
-      }
-    });
-  }
-
-  // =========================
-  // RUNNER
-  // =========================
-  function run() {
-    if (!isProductPage()) return;
-
-    fixSwatches();
-    hideProductCode();
-    cleanPriceLabel();
-    fixBasePriceLabel();
-    fixVisibleStartingAtText();
-  }
-
   function init() {
-    if (!isProductPage()) return;
-
     run();
-
-    // light follow-up passes only
     setTimeout(run, 300);
     setTimeout(run, 800);
+    setTimeout(run, 1500);
   }
 
   if (document.readyState === "loading") {
