@@ -8,6 +8,10 @@
     if (DEBUG) console.log("[OptionsUI]", ...arguments);
   }
 
+  function isProductPage() {
+    return /\/product-p\//i.test(window.location.pathname);
+  }
+
   function hide(el) {
     if (!el) return;
     el.style.display = "none";
@@ -21,11 +25,8 @@
     if (!img) return;
 
     let src = img.getAttribute("src") || "";
-
-    // only touch Cloudinary option images
     if (!src.includes("cloudinary") || !src.includes("photos/options")) return;
 
-    // upscale from 30px
     src = src.replace(/w_30,/g, `w_${SWATCH_WIDTH},`);
     src = src.replace(/h_30,/g, "");
 
@@ -33,7 +34,6 @@
       img.src = src;
     }
 
-    // show image naturally
     img.removeAttribute("width");
     img.removeAttribute("height");
 
@@ -42,8 +42,6 @@
     img.style.maxWidth = "none";
     img.style.objectFit = "unset";
     img.style.display = "block";
-
-    // remove circle/oval effects
     img.style.borderRadius = "0";
     img.style.clipPath = "none";
     img.style.webkitClipPath = "none";
@@ -59,8 +57,6 @@
     wrap.style.flex = "0 0 " + SWATCH_WIDTH + "px";
     wrap.style.padding = "0";
     wrap.style.display = "inline-block";
-
-    // remove any shaping
     wrap.style.borderRadius = "0";
     wrap.style.clipPath = "none";
     wrap.style.webkitClipPath = "none";
@@ -117,12 +113,30 @@
 
   function fixBasePriceLabel() {
     document.querySelectorAll("[data-product-base-price]").forEach((el) => {
-      const txt = (el.textContent || "").trim();
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
       if (!txt) return;
 
-      if (/^starting at:/i.test(txt)) {
-        el.textContent = txt.replace(/^starting at:\s*/i, "Product Price: ");
-        log("Updated base price label", el);
+      if (/starting at/i.test(txt)) {
+        const priceMatch = txt.match(/\$\s*[\d,]+(?:\.\d{2})?/);
+        const pricePart = priceMatch ? priceMatch[0].replace(/\s+/g, "") : "";
+        el.textContent = pricePart ? `Product Price: ${pricePart}` : "Product Price";
+        log("Updated [data-product-base-price]", el);
+      }
+    });
+  }
+
+  function fixVisibleStartingAtText() {
+    document.querySelectorAll("div, span, p, strong, label").forEach((el) => {
+      if (el.children.length > 0) return;
+
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!txt) return;
+
+      if (/^starting at\s*:/i.test(txt)) {
+        const priceMatch = txt.match(/\$\s*[\d,]+(?:\.\d{2})?/);
+        const pricePart = priceMatch ? priceMatch[0].replace(/\s+/g, "") : "";
+        el.textContent = pricePart ? `Product Price: ${pricePart}` : "Product Price";
+        log("Updated visible Starting at text", el);
       }
     });
   }
@@ -131,23 +145,30 @@
   // RUNNER
   // =========================
   function run() {
+    if (!isProductPage()) return;
+
     fixSwatches();
     hideProductCode();
     cleanPriceLabel();
     fixBasePriceLabel();
+    fixVisibleStartingAtText();
   }
 
   function init() {
+    if (!isProductPage()) return;
+
     run();
 
     setTimeout(run, 300);
     setTimeout(run, 800);
     setTimeout(run, 1500);
+    setTimeout(run, 2500);
 
     const observer = new MutationObserver(() => run());
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      characterData: true
     });
   }
 
