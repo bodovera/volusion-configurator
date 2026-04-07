@@ -120,7 +120,7 @@
         const priceMatch = txt.match(/\$\s*[\d,]+(?:\.\d{2})?/);
         const pricePart = priceMatch ? priceMatch[0].replace(/\s+/g, "") : "";
         el.textContent = pricePart ? `Product Price: ${pricePart}` : "Product Price";
-        log("Updated [data-product-base-price]", el);
+        log("Updated base price label", el);
       }
     });
   }
@@ -159,17 +159,9 @@
 
     run();
 
+    // light follow-up passes only
     setTimeout(run, 300);
     setTimeout(run, 800);
-    setTimeout(run, 1500);
-    setTimeout(run, 2500);
-
-    const observer = new MutationObserver(() => run());
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
   }
 
   if (document.readyState === "loading") {
