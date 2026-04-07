@@ -1,58 +1,81 @@
 (function () {
   "use strict";
 
-  const SWATCH_WIDTH = 200;
   const DEBUG = true;
 
   function log() {
-    if (DEBUG) console.log("[SwatchFix]", ...arguments);
+    if (DEBUG) console.log("[SwatchNaturalFull]", ...arguments);
+  }
+
+  function getFullResSrc(src) {
+    if (!src) return src;
+
+    // only touch option images
+    if (!src.includes("cloudinary") || !src.includes("photos/options")) {
+      return src;
+    }
+
+    let out = src;
+
+    // remove tiny forced Cloudinary dimensions
+    out = out.replace(/w_30,/g, "");
+    out = out.replace(/h_30,/g, "");
+
+    // clean up possible double commas left behind
+    out = out.replace(/,,+/g, ",");
+    out = out.replace(/\/,/, "/");
+    out = out.replace(/,\//, "/");
+
+    return out;
   }
 
   function fixImage(img) {
     if (!img) return;
 
-    let src = img.getAttribute("src") || "";
-
-    // only touch option images
-    if (!src.includes("cloudinary") || !src.includes("photos/options")) return;
-
-    // upscale image (remove 30px constraint)
-    src = src.replace(/w_30,/g, `w_${SWATCH_WIDTH},`);
-    src = src.replace(/h_30,/g, "");
-
-    if (img.src !== src) {
-      img.src = src;
+    const originalSrc = img.getAttribute("src") || "";
+    if (!originalSrc.includes("cloudinary") || !originalSrc.includes("photos/options")) {
+      return;
     }
 
-    // REMOVE ALL FORCED SHAPING
+    const fullSrc = getFullResSrc(originalSrc);
+
+    if (img.src !== fullSrc) {
+      img.src = fullSrc;
+      log("Updated image src to full-res:", fullSrc);
+    }
+
+    // remove forced constraints
     img.removeAttribute("width");
     img.removeAttribute("height");
 
-    img.style.width = SWATCH_WIDTH + "px";
-    img.style.height = "auto"; // <-- THIS is key (natural ratio)
+    // show image as loaded
+    img.style.width = "auto";
+    img.style.height = "auto";
     img.style.maxWidth = "none";
+    img.style.objectFit = "unset";
+    img.style.display = "block";
 
-    // kill ALL rounding / masking
+    // remove round / oval effect
     img.style.borderRadius = "0";
     img.style.clipPath = "none";
     img.style.webkitClipPath = "none";
     img.style.mask = "none";
     img.style.webkitMask = "none";
 
-    // ensure no cropping
-    img.style.objectFit = "unset";
-
-    log("Image set to natural shape:", src);
+    log("Image displayed at natural full size:", fullSrc);
   }
 
   function fixWrapper(wrap) {
     if (!wrap) return;
 
-    wrap.style.width = SWATCH_WIDTH + "px";
-    wrap.style.flex = "0 0 " + SWATCH_WIDTH + "px";
+    // let wrapper follow image naturally
+    wrap.style.width = "auto";
+    wrap.style.minWidth = "0";
+    wrap.style.maxWidth = "none";
+    wrap.style.flex = "0 0 auto";
     wrap.style.padding = "0";
 
-    // REMOVE any circular container styling
+    // remove circular shaping
     wrap.style.borderRadius = "0";
     wrap.style.clipPath = "none";
     wrap.style.webkitClipPath = "none";
@@ -70,7 +93,6 @@
       fixImage(img);
       fixWrapper(wrap);
 
-      // sometimes volusion wraps twice
       if (wrap && wrap.parentElement) {
         wrap.parentElement.style.borderRadius = "0";
         wrap.parentElement.style.clipPath = "none";
