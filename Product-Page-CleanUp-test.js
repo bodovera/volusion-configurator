@@ -90,7 +90,7 @@
   }
 
   // =========================
-  // CLEANUP (MINIMAL - YOUR ORIGINAL STYLE)
+  // CLEANUP
   // =========================
   function hideProductCode() {
     document.querySelectorAll("[data-product-code]").forEach((el) => {
@@ -110,7 +110,19 @@
         /\d+\s*x\s*\d+/i.test(txt)
       ) {
         el.textContent = "Product Price";
-        log("Updated price label", el);
+        log("Updated ProductPrice_Name label", el);
+      }
+    });
+  }
+
+  function fixBasePriceLabel() {
+    document.querySelectorAll("[data-product-base-price]").forEach((el) => {
+      const txt = (el.textContent || "").trim();
+      if (!txt) return;
+
+      if (/^starting at:/i.test(txt)) {
+        el.textContent = txt.replace(/^starting at:\s*/i, "Product Price: ");
+        log("Updated base price label", el);
       }
     });
   }
@@ -122,6 +134,7 @@
     fixSwatches();
     hideProductCode();
     cleanPriceLabel();
+    fixBasePriceLabel();
   }
 
   function init() {
