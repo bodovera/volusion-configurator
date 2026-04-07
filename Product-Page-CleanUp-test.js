@@ -1,5 +1,5 @@
 (function () {
-  "use strict";
+  "use strict"; 
 
   const SWATCH_WIDTH = 200;
   const DEBUG = true;
