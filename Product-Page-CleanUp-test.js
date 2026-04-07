@@ -5,7 +5,7 @@
   const DEBUG = true;
 
   function log() {
-    if (DEBUG) console.log("[ProductOptionsUI]", ...arguments);
+    if (DEBUG) console.log("[OptionsUI]", ...arguments);
   }
 
   function hide(el) {
@@ -14,6 +14,9 @@
     el.setAttribute("aria-hidden", "true");
   }
 
+  // =========================
+  // SWATCH IMAGE FIX
+  // =========================
   function fixImage(img) {
     if (!img) return;
 
@@ -22,7 +25,7 @@
     // only touch Cloudinary option images
     if (!src.includes("cloudinary") || !src.includes("photos/options")) return;
 
-    // replace tiny 30px swatch width
+    // upscale from 30px
     src = src.replace(/w_30,/g, `w_${SWATCH_WIDTH},`);
     src = src.replace(/h_30,/g, "");
 
@@ -30,38 +33,34 @@
       img.src = src;
     }
 
+    // show image naturally
     img.removeAttribute("width");
     img.removeAttribute("height");
 
-    // show image as-is
     img.style.width = SWATCH_WIDTH + "px";
     img.style.height = "auto";
     img.style.maxWidth = "none";
     img.style.objectFit = "unset";
     img.style.display = "block";
 
-    // remove circle / oval styling
+    // remove circle/oval effects
     img.style.borderRadius = "0";
     img.style.clipPath = "none";
     img.style.webkitClipPath = "none";
     img.style.mask = "none";
     img.style.webkitMask = "none";
     img.style.overflow = "visible";
-
-    log("Updated option image:", src);
   }
 
   function fixWrapper(wrap) {
     if (!wrap) return;
 
     wrap.style.width = SWATCH_WIDTH + "px";
-    wrap.style.minWidth = SWATCH_WIDTH + "px";
-    wrap.style.maxWidth = "none";
     wrap.style.flex = "0 0 " + SWATCH_WIDTH + "px";
     wrap.style.padding = "0";
     wrap.style.display = "inline-block";
 
-    // remove circle / oval styling
+    // remove any shaping
     wrap.style.borderRadius = "0";
     wrap.style.clipPath = "none";
     wrap.style.webkitClipPath = "none";
@@ -85,23 +84,18 @@
         wrap.parentElement.style.borderRadius = "0";
         wrap.parentElement.style.clipPath = "none";
         wrap.parentElement.style.webkitClipPath = "none";
-        wrap.parentElement.style.mask = "none";
-        wrap.parentElement.style.webkitMask = "none";
         wrap.parentElement.style.overflow = "visible";
       }
     });
   }
 
+  // =========================
+  // CLEANUP (MINIMAL - YOUR ORIGINAL STYLE)
+  // =========================
   function hideProductCode() {
     document.querySelectorAll("[data-product-code]").forEach((el) => {
       hide(el);
-      log("Hid product code container", el);
-    });
-
-    document.querySelectorAll(".ProductCode, #ProductCode").forEach((el) => {
-      const wrap = el.closest(".flex.flex-wrap") || el.parentElement || el;
-      hide(wrap);
-      log("Hid ProductCode wrapper", wrap);
+      log("Hid product code", el);
     });
   }
 
@@ -116,11 +110,14 @@
         /\d+\s*x\s*\d+/i.test(txt)
       ) {
         el.textContent = "Product Price";
-        log("Changed ProductPrice_Name to Product Price", el);
+        log("Updated price label", el);
       }
     });
   }
 
+  // =========================
+  // RUNNER
+  // =========================
   function run() {
     fixSwatches();
     hideProductCode();
@@ -134,10 +131,7 @@
     setTimeout(run, 800);
     setTimeout(run, 1500);
 
-    const observer = new MutationObserver(() => {
-      run();
-    });
-
+    const observer = new MutationObserver(() => run());
     observer.observe(document.body, {
       childList: true,
       subtree: true
