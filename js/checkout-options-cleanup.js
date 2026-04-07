@@ -2,80 +2,55 @@
   "use strict";
 
   const DEBUG = true;
-  const PRICE_PATTERN = /\s*,?\s*PRICE[^,]*.*$/i;
 
   function log() {
-    if (DEBUG) console.log("[cart-text-cleanup]", ...arguments);
+    if (DEBUG) console.log("[checkout-text-cleanup]", ...arguments);
   }
 
   function isCheckoutPage() {
     return window.location.pathname.toLowerCase().indexOf("/checkout") === 0;
   }
 
-  function cleanText(str) {
-    if (!str) return str;
-    return String(str)
-      .replace(PRICE_PATTERN, "")
+  function cleanupText(text) {
+    if (!text) return text;
+
+    return String(text)
+      .replace(/\s*,?\s*PRICE[^,]*$/i, "")
       .replace(/\s+,/g, ",")
       .replace(/,+\s*$/g, "")
       .trim();
   }
 
-  function shouldCleanNode(el) {
-    if (!el) return false;
-    if (!el.classList || !el.classList.contains("text-sm")) return false;
+  function getDescriptionNodes(root) {
+    const scope = root && root.querySelectorAll ? root : document;
 
-    const text = (el.textContent || "").trim();
-    if (!text) return false;
-
-    // only touch rows that actually contain PRICE
-    if (!/PRICE/i.test(text)) return false;
-
-    // avoid touching unrelated checkout labels like Unit:, terms text, etc.
-    const cartItem = el.closest('[data-testid="cartitem-content"]');
-    return !!cartItem;
+    return scope.querySelectorAll(
+      '[data-testid="cartitem-content"] .flex.flex-col.w-full .text-sm'
+    );
   }
 
-  function cleanNode(el) {
-    if (!shouldCleanNode(el)) return;
+  function processNode(el) {
+    if (!el) return;
 
-    const original = el.textContent || "";
-    const cleaned = cleanText(original);
+    const text = (el.textContent || "").trim();
+    if (!text) return;
+    if (!/PRICE/i.test(text)) return;
 
-    if (cleaned !== original) {
+    const cleaned = cleanupText(text);
+
+    if (cleaned !== text) {
       el.textContent = cleaned;
-      log("Cleaned:", { before: original, after: cleaned });
+      log("cleaned", { before: text, after: cleaned });
     }
   }
 
   function scan(root) {
-    const scope = root && root.querySelectorAll ? root : document;
-    const nodes = scope.querySelectorAll('.text-sm');
-    nodes.forEach(cleanNode);
+    getDescriptionNodes(root).forEach(processNode);
   }
 
-  function startObserver() {
-    const observer = new MutationObserver(function (mutations) {
-      for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          mutation.addedNodes.forEach(function (node) {
-            if (node.nodeType !== 1) return;
-
-            if (node.matches && node.matches(".text-sm")) {
-              cleanNode(node);
-            }
-
-            if (node.querySelectorAll) {
-              scan(node);
-            }
-          });
-        }
-
-        if (mutation.type === "characterData") {
-          const parent = mutation.target && mutation.target.parentElement;
-          if (parent) cleanNode(parent);
-        }
-      }
+  function observe() {
+    const observer = new MutationObserver(function () {
+      scan(document);
     });
 
     observer.observe(document.body, {
@@ -84,23 +59,23 @@
       characterData: true
     });
 
-    log("Observer started");
+    log("observer started");
   }
 
   function init() {
     if (!isCheckoutPage()) {
-      log("Not on /checkout, exiting");
+      log("not checkout, exit");
       return;
     }
 
-    log("Init on checkout");
+    log("init");
     scan(document);
-    startObserver();
+    observe();
 
-    // extra passes for React/Next checkout rendering
-    setTimeout(function () { scan(document); }, 300);
-    setTimeout(function () { scan(document); }, 1000);
-    setTimeout(function () { scan(document); }, 2000);
+    setTimeout(function () { scan(document); }, 250);
+    setTimeout(function () { scan(document); }, 750);
+    setTimeout(function () { scan(document); }, 1500);
+    setTimeout(function () { scan(document); }, 3000);
   }
 
   if (document.readyState === "loading") {
