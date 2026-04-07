@@ -73,10 +73,9 @@
 
     cleaned = cleaned.replace(/\/c_limit[^/]*\//i, "/");
     cleaned = cleaned.replace(/\/w_\d+,h_\d+[^/]*\//i, "/");
-    cleaned = cleaned.replace(/\/w_\d+[^/]*,h_\d+[^/]*\//i, "/");
-    cleaned = cleaned.replace(/\/h_\d+[^/]*,w_\d+[^/]*\//i, "/");
-    cleaned = cleaned.replace(/\/q_auto[^/]*\//i, "/");
-    cleaned = cleaned.replace(/\/f_auto[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/h_\d+,w_\d+[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/w_\d+[^/]*\//i, "/");
+    cleaned = cleaned.replace(/\/h_\d+[^/]*\//i, "/");
 
     cleaned = cleaned.replace(/\/{2,}/g, "/");
     cleaned = cleaned.replace(/^https:\//i, "https://");
@@ -84,56 +83,82 @@
     return cleaned;
   }
 
-  function upgradeSwatchImage(img) {
-    if (!img || img.dataset.cleanupUpgraded === "1") return;
+  function getBestImageSrc(img) {
+    if (!img) return "";
 
-    const original =
-      img.getAttribute("data-src") ||
-      img.dataset.src ||
-      img.getAttribute("src") ||
-      "";
+    const candidates = [
+      img.getAttribute("data-src"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-lazy-src"),
+      img.dataset ? img.dataset.src : "",
+      img.dataset ? img.dataset.original : "",
+      img.getAttribute("src")
+    ].filter(Boolean);
 
-    if (!original) return;
-
-    const better = forceBetterCloudinarySrc(original);
-
-    if (better) {
-      img.src = better;
-      img.dataset.cleanupUpgraded = "1";
-      log("Forced better swatch image", { original, better });
+    for (const src of candidates) {
+      const better = forceBetterCloudinarySrc(src);
+      if (better) return better;
     }
+
+    return "";
+  }
+
+  function sizeSwatchWrapper(wrap) {
+    wrap.style.width = SWATCH_WIDTH + "px";
+    wrap.style.minWidth = SWATCH_WIDTH + "px";
+    wrap.style.maxWidth = SWATCH_WIDTH + "px";
+    wrap.style.flex = "0 0 " + SWATCH_WIDTH + "px";
+    wrap.style.height = "auto";
+    wrap.style.display = "inline-flex";
+    wrap.style.alignItems = "center";
+    wrap.style.justifyContent = "center";
+    wrap.style.overflow = "hidden";
+    wrap.style.boxSizing = "border-box";
+    wrap.style.verticalAlign = "top";
+    wrap.style.cursor = "pointer";
+  }
+
+  function sizeSwatchImage(img) {
+    img.style.width = SWATCH_WIDTH + "px";
+    img.style.minWidth = SWATCH_WIDTH + "px";
+    img.style.maxWidth = SWATCH_WIDTH + "px";
+    img.style.height = "auto";
+    img.style.display = "block";
+    img.style.objectFit = "contain";
+  }
+
+  function upgradeOneSwatch(wrap) {
+    const img = wrap.querySelector("img");
+    if (!img) return;
+
+    const bestSrc = getBestImageSrc(img);
+    if (bestSrc && img.getAttribute("src") !== bestSrc) {
+      img.setAttribute("src", bestSrc);
+    }
+
+    sizeSwatchWrapper(wrap);
+    sizeSwatchImage(img);
   }
 
   function resizeSwatches() {
     const wrappers = document.querySelectorAll('[class*="swatchWrapper"]');
+    wrappers.forEach(upgradeOneSwatch);
 
+    // Some Volusion layouts keep sibling wrappers inside a flex row that also needs help
+    const rows = new Set();
     wrappers.forEach((wrap) => {
-      const img = wrap.querySelector("img");
-      if (!img) return;
-
-      upgradeSwatchImage(img);
-
-      wrap.style.width = SWATCH_WIDTH + "px";
-      wrap.style.minWidth = SWATCH_WIDTH + "px";
-      wrap.style.maxWidth = SWATCH_WIDTH + "px";
-      wrap.style.height = "auto";
-      wrap.style.display = "inline-flex";
-      wrap.style.alignItems = "center";
-      wrap.style.justifyContent = "center";
-      wrap.style.overflow = "hidden";
-      wrap.style.boxSizing = "border-box";
-      wrap.style.verticalAlign = "top";
-      wrap.style.cursor = "pointer";
-
-      img.style.width = SWATCH_WIDTH + "px";
-      img.style.maxWidth = SWATCH_WIDTH + "px";
-      img.style.minWidth = SWATCH_WIDTH + "px";
-      img.style.height = "auto";
-      img.style.display = "block";
-      img.style.objectFit = "contain";
-
-      log("Resized swatch", wrap);
+      const row = wrap.closest(".flex.flex-wrap.items-center") || wrap.parentElement;
+      if (row) rows.add(row);
     });
+
+    rows.forEach((row) => {
+      row.style.display = "flex";
+      row.style.flexWrap = "wrap";
+      row.style.alignItems = "flex-start";
+      row.style.gap = "8px";
+    });
+
+    log("Processed swatches:", wrappers.length);
   }
 
   function run() {
@@ -152,8 +177,15 @@
 
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["src", "class", "style"]
     });
+
+    // Volusion sometimes re-renders after page load
+    setTimeout(run, 250);
+    setTimeout(run, 750);
+    setTimeout(run, 1500);
   }
 
   if (document.readyState === "loading") {
