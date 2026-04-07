@@ -1,84 +1,57 @@
 (function () {
   "use strict";
 
-  const SWATCH_WIDTH = 200;
+  const SWATCH_SCALE = 6.67; // 30px * 6.67 ≈ 200px visual size
   const DEBUG = true;
 
   function log() {
-    if (DEBUG) console.log("[SwatchCloneFix]", ...arguments);
+    if (DEBUG) console.log("[SwatchCSSOnly]", ...arguments);
   }
 
-  function buildLargeSrc(src) {
-    if (!src) return src;
-    if (!src.includes("cloudinary") || !src.includes("photos/options")) return src;
-
-    let out = src;
-    out = out.replace(/w_30,/g, `w_${SWATCH_WIDTH},`);
-    out = out.replace(/h_30,/g, "");
-    return out;
-  }
-
-  function processImage(img) {
+  function styleImage(img) {
     if (!img) return;
-    if (img.dataset.swatchCloneProcessed === "1") return;
+    if (img.dataset.swatchStyled === "1") return;
 
     const src = img.getAttribute("src") || "";
     if (!src.includes("cloudinary") || !src.includes("photos/options")) return;
 
-    const wrap = img.parentElement;
-    if (!wrap) return;
+    img.dataset.swatchStyled = "1";
 
-    img.dataset.swatchCloneProcessed = "1";
-
-    // Keep the ORIGINAL image/node intact for Volusion logic
-    // Just make it visually invisible while preserving layout/click behavior.
-    img.style.opacity = "0";
+    // Leave the real element and src alone.
+    // Only visually enlarge it.
+    img.style.transform = `scale(${SWATCH_SCALE})`;
+    img.style.transformOrigin = "top left";
+    img.style.borderRadius = "0";
+    img.style.clipPath = "none";
+    img.style.webkitClipPath = "none";
+    img.style.mask = "none";
+    img.style.webkitMask = "none";
+    img.style.objectFit = "unset";
+    img.style.imageRendering = "auto";
     img.style.position = "relative";
-    img.style.zIndex = "2";
+    img.style.zIndex = "1";
 
-    // Prepare wrapper for overlay display
-    wrap.style.position = "relative";
-    wrap.style.display = "inline-block";
-    wrap.style.width = SWATCH_WIDTH + "px";
-    wrap.style.padding = "0";
-    wrap.style.borderRadius = "0";
-    wrap.style.clipPath = "none";
-    wrap.style.webkitClipPath = "none";
-    wrap.style.overflow = "visible";
-    wrap.style.verticalAlign = "top";
+    log("Styled existing option image only:", src);
+  }
 
-    if (wrap.parentElement) {
-      wrap.parentElement.style.borderRadius = "0";
-      wrap.parentElement.style.clipPath = "none";
-      wrap.parentElement.style.webkitClipPath = "none";
-      wrap.parentElement.style.overflow = "visible";
-    }
+  function fixBasePriceLabel() {
+    document.querySelectorAll("[data-product-base-price]").forEach((el) => {
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!txt) return;
 
-    // Build a DISPLAY-ONLY clone
-    const clone = document.createElement("img");
-    clone.src = buildLargeSrc(src);
-    clone.alt = img.alt || "";
-    clone.setAttribute("aria-hidden", "true");
+      if (/starting at/i.test(txt)) {
+        const priceMatch = txt.match(/\$\s*[\d,]+(?:\.\d{2})?/);
+        const pricePart = priceMatch ? priceMatch[0].replace(/\s+/g, "") : "";
+        el.textContent = pricePart ? `Product Price: ${pricePart}` : "Product Price";
+      }
+    });
+  }
 
-    clone.style.position = "absolute";
-    clone.style.left = "0";
-    clone.style.top = "0";
-    clone.style.width = SWATCH_WIDTH + "px";
-    clone.style.height = "auto";
-    clone.style.maxWidth = "none";
-    clone.style.display = "block";
-    clone.style.objectFit = "unset";
-    clone.style.borderRadius = "0";
-    clone.style.clipPath = "none";
-    clone.style.webkitClipPath = "none";
-    clone.style.mask = "none";
-    clone.style.webkitMask = "none";
-    clone.style.pointerEvents = "none";
-    clone.style.zIndex = "3";
-
-    wrap.appendChild(clone);
-
-    log("Created safe display clone for:", src);
+  function hideProductCode() {
+    document.querySelectorAll("[data-product-code]").forEach((el) => {
+      el.style.display = "none";
+      el.setAttribute("aria-hidden", "true");
+    });
   }
 
   function run() {
@@ -86,7 +59,9 @@
       '[data-smartmatchids] img[src*="photos/options"]'
     );
 
-    images.forEach(processImage);
+    images.forEach(styleImage);
+    fixBasePriceLabel();
+    hideProductCode();
   }
 
   function init() {
